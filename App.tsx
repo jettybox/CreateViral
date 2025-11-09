@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { collection, onSnapshot } from 'https://aistudiocdn.com/firebase@10.12.3/firestore';
-import { db } from './firebase-config';
+import { collection, onSnapshot, Firestore } from 'firebase/firestore';
+import { initializeFirebase } from './firebase-config';
 import { Header } from './components/Header';
 import { CategoryFilter } from './components/CategoryFilter';
 import { VideoGrid } from './components/VideoGrid';
@@ -33,6 +33,7 @@ const DiscountBanner: React.FC = () => {
 };
 
 export default function App() {
+  const [dbInstance, setDbInstance] = useState<Firestore | null>(null);
   const [videos, setVideos] = useState<VideoFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -48,32 +49,43 @@ export default function App() {
   const [cart, setCart] = useState<string[]>([]); // Array of video IDs
   const isAdmin = useAdminMode();
 
-  // Effect to fetch data on component mount.
+  // Effect to initialize Firebase connection on component mount.
   useEffect(() => {
+    const { db, firebaseInitError } = initializeFirebase();
+    if (db) {
+      setDbInstance(db);
+    } else {
+      setConnectionError(firebaseInitError);
+      setIsLoading(false);
+    }
+  }, []); // Empty array ensures this runs only once.
+
+  // Effect to fetch data once the database instance is available.
+  useEffect(() => {
+    // Don't run if the DB isn't initialized yet.
+    if (!dbInstance) {
+      return;
+    }
+    
     setIsLoading(true);
     // Set up a real-time listener to the 'videos' collection in Firestore
-    const unsubscribe = onSnapshot(collection(db, "videos"), (snapshot) => {
+    const unsubscribe = onSnapshot(collection(dbInstance, "videos"), (snapshot) => {
       const videosData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as VideoFile[];
       setVideos(videosData);
-      setConnectionError(null); // Clear previous errors on success
       setIsLoading(false);
     }, (error: any) => {
       console.error("Error fetching videos from Firestore: ", error);
       let errorMessage = "Could not connect to the database. Please check the browser console for details and ensure your `firebase-config.ts` file is correct.";
-      
-      if (error.message && error.message.includes('firestore is not available')) {
-          errorMessage = "Service firestore is not available. This can happen with certain build tools and module loading. Using direct CDN imports should resolve this issue.";
-      } else if (error.code === 'permission-denied') {
+      if (error.code === 'permission-denied') {
         errorMessage = "Permission Denied: Could not read from the 'videos' collection. Please check your Firestore Security Rules in the Firebase Console.";
       }
-      
       setConnectionError(errorMessage);
       setIsLoading(false); // Stop loading even if there's an error
     });
 
     // Clean up the listener when the component unmounts
     return () => unsubscribe();
-  }, []); // Empty array ensures this runs only once.
+  }, [dbInstance]); // This effect re-runs only if dbInstance changes.
 
   useEffect(() => {
     setCurrentPage(1);
