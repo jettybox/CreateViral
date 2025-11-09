@@ -1,3 +1,6 @@
+// Import for side-effects first to register the service.
+import "https://aistudiocdn.com/firebase@^10.12.3/firestore.js";
+
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://aistudiocdn.com/firebase@^10.12.3/app.js";
 import { getFirestore, Firestore } from "https://aistudiocdn.com/firebase@^10.12.3/firestore.js";
