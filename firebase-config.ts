@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp } from "https://aistudiocdn.com/firebase@10.12.3/app";
+import { getFirestore } from "https://aistudiocdn.com/firebase@10.12.3/firestore";
 
 // Your web app's Firebase configuration from your project settings
 const firebaseConfig = {
