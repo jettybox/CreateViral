@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot } from 'https://aistudiocdn.com/firebase@^10.12.3/firestore.js';
 import { db, firebaseInitError } from './firebase-config';
 import { Header } from './components/Header';
 import { CategoryFilter } from './components/CategoryFilter';
