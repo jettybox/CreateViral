@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from './firebase-config';
 import { Header } from './components/Header';
 import { CategoryFilter } from './components/CategoryFilter';
 import { VideoGrid } from './components/VideoGrid';
@@ -12,6 +14,7 @@ import { CATEGORIES } from './constants';
 import { FilmIcon, SparklesIcon } from './components/Icons';
 import { getEnhancedSearchTerms } from './services/geminiService';
 import { useAdminMode } from './hooks/useAdminMode';
+import { Spinner } from './components/Spinner';
 
 const VIDEOS_PER_PAGE = 24;
 
@@ -31,6 +34,7 @@ const DiscountBanner: React.FC = () => {
 
 export default function App() {
   const [videos, setVideos] = useState<VideoFile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [enhancedSearchTerms, setEnhancedSearchTerms] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -44,9 +48,19 @@ export default function App() {
   const isAdmin = useAdminMode();
 
   useEffect(() => {
-    // This is where you would fetch videos from your Firebase/Firestore database
-    // For now, we'll keep it empty.
-    // e.g., fetchVideosFromFirestore().then(setVideos);
+    setIsLoading(true);
+    // Set up a real-time listener to the 'videos' collection in Firestore
+    const unsubscribe = onSnapshot(collection(db, "videos"), (snapshot) => {
+      const videosData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as VideoFile[];
+      setVideos(videosData);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching videos from Firestore: ", error);
+      setIsLoading(false); // Stop loading even if there's an error
+    });
+
+    // Clean up the listener when the component unmounts
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -145,6 +159,49 @@ export default function App() {
     const startIndex = (currentPage - 1) * VIDEOS_PER_PAGE;
     return filteredAndSortedVideos.slice(startIndex, startIndex + VIDEOS_PER_PAGE);
   }, [filteredAndSortedVideos, currentPage]);
+  
+  const renderContent = () => {
+    if (isLoading) {
+        return (
+            <div className="text-center py-20">
+                <Spinner className="h-12 w-12" />
+                <p className="mt-4 text-gray-400">Connecting to database...</p>
+            </div>
+        );
+    }
+
+    if (videos.length === 0) {
+        return (
+            <div className="text-center py-20 bg-gray-800/50 rounded-lg">
+                <FilmIcon className="w-16 h-16 mx-auto text-gray-500" />
+                <h2 className="mt-4 text-2xl font-bold text-gray-300">Your Collection is Empty</h2>
+                <p className="text-gray-400 mt-2 max-w-md mx-auto">
+                  Videos added to your backend will appear here. If you've just configured Firebase, ensure your security rules are in "Test Mode" and your config details are correct in <code className="text-xs bg-gray-700 p-1 rounded">firebase-config.ts</code>.
+                </p>
+            </div>
+        );
+    }
+
+    return (
+      <>
+        <DiscountBanner />
+        <VideoGrid 
+          videos={paginatedVideos} 
+          onVideoSelect={setSelectedVideo}
+          onAddToCart={handleAddToCart}
+          cart={cart}
+        />
+        {totalPages > 1 && (
+          <Pagination 
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
+        )}
+      </>
+    );
+  };
+
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
@@ -166,33 +223,7 @@ export default function App() {
           <SortDropdown selected={sortBy} onSelect={setSortBy} />
         </div>
         
-        {videos.length > 0 && <DiscountBanner />}
-
-        {videos.length === 0 ? (
-            <div className="text-center py-20 bg-gray-800/50 rounded-lg">
-                <FilmIcon className="w-16 h-16 mx-auto text-gray-500" />
-                <h2 className="mt-4 text-2xl font-bold text-gray-300">Your Collection is Empty</h2>
-                <p className="text-gray-400 mt-2">
-                  Videos added to your backend storage will appear here automatically after processing.
-                </p>
-            </div>
-        ) : (
-          <>
-            <VideoGrid 
-              videos={paginatedVideos} 
-              onVideoSelect={setSelectedVideo}
-              onAddToCart={handleAddToCart}
-              cart={cart}
-            />
-            {totalPages > 1 && (
-              <Pagination 
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-              />
-            )}
-          </>
-        )}
+        {renderContent()}
       </main>
       
       {isGuidanceOpen && (
