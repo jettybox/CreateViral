@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "https://aistudiocdn.com/firebase@^10.12.3/app";
-import { getFirestore } from "https://aistudiocdn.com/firebase@^10.12.3/firestore";
+import { initializeApp } from "firebase/app";
+import { getFirestore, Firestore } from "firebase/firestore";
 
 // TODO: Add your Firebase project's configuration here
 //
@@ -21,8 +21,22 @@ const firebaseConfig = {
   measurementId: "G-WC24HZVF3D"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
 
-// Get a reference to the Firestore service
-export const db = getFirestore(app);
+let db: Firestore | null = null;
+let firebaseInitError: string | null = null;
+
+try {
+  // Basic check to prevent running with placeholder values.
+  if (firebaseConfig.apiKey.includes("YOUR_")) {
+    throw new Error("Firebase configuration contains placeholder values. Please update firebase-config.ts with your actual project keys.");
+  }
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  // Get a reference to the Firestore service
+  db = getFirestore(app);
+} catch (e: any) {
+  console.error("CRITICAL: Firebase initialization failed.", e);
+  firebaseInitError = e.message || "An unknown error occurred during Firebase initialization. Check the browser console for more details.";
+}
+
+export { db, firebaseInitError };
