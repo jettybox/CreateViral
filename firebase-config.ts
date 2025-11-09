@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp } from "https://aistudiocdn.com/firebase@^10.12.3/app";
+import { getFirestore } from "https://aistudiocdn.com/firebase@^10.12.3/firestore";
 
 // TODO: Add your Firebase project's configuration here
 //
@@ -12,7 +12,7 @@ import { getFirestore } from "firebase/firestore";
 // 5. You will be shown your firebaseConfig object. Copy it and paste it below.
 
 const firebaseConfig = {
-  apiKey: "AIzaSyA0UV9I-E0pDCR4azCXCp0I1hdlNqCV200",
+   apiKey: "AIzaSyA0UV9I-E0pDCR4azCXCp0I1hdlNqCV200",
   authDomain: "createviral-database.firebaseapp.com",
   projectId: "createviral-database",
   storageBucket: "createviral-database.firebasestorage.app",
