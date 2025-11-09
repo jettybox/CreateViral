@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { collection, onSnapshot } from 'https://aistudiocdn.com/firebase@^10.12.3/firestore';
-import { db } from './firebase-config';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db, firebaseInitError } from './firebase-config';
 import { Header } from './components/Header';
 import { CategoryFilter } from './components/CategoryFilter';
 import { VideoGrid } from './components/VideoGrid';
@@ -35,7 +35,7 @@ const DiscountBanner: React.FC = () => {
 export default function App() {
   const [videos, setVideos] = useState<VideoFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(firebaseInitError);
   const [searchTerm, setSearchTerm] = useState('');
   const [enhancedSearchTerms, setEnhancedSearchTerms] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -49,8 +49,19 @@ export default function App() {
   const isAdmin = useAdminMode();
 
   useEffect(() => {
+    // If Firebase failed to initialize, don't attempt to connect.
+    // The error is already set in useState and will be displayed by renderContent.
+    if (firebaseInitError || !db) {
+      setIsLoading(false);
+      if (!firebaseInitError) {
+          setConnectionError("Database service is not available. Please check your Firebase configuration.");
+      }
+      return;
+    }
+
     setIsLoading(true);
     setConnectionError(null);
+    
     // Set up a real-time listener to the 'videos' collection in Firestore
     const unsubscribe = onSnapshot(collection(db, "videos"), (snapshot) => {
       const videosData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as VideoFile[];
@@ -181,14 +192,19 @@ export default function App() {
       return (
         <div className="text-center py-12 px-4 bg-red-900/20 border border-red-500/30 rounded-lg">
           <WarningIcon className="w-16 h-16 mx-auto text-red-400" />
-          <h2 className="mt-4 text-2xl font-bold text-red-300">Database Connection Error</h2>
+          <h2 className="mt-4 text-2xl font-bold text-red-300">Application Error</h2>
           <p className="text-red-400 mt-2 max-w-lg mx-auto">{connectionError}</p>
           <div className="text-gray-400 mt-4 text-sm max-w-lg mx-auto text-left space-y-2">
             <p>
-                If the error mentions "Permission Denied", the most likely cause is your Firestore Security Rules. For a public website that needs to read video data, you must explicitly allow it.
+                This error can occur for a few reasons:
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>The credentials in your <strong>firebase-config.ts</strong> file are incorrect or incomplete.</li>
+                    <li>Your Firebase project is not properly configured to allow connections from this website's domain.</li>
+                    <li>If the error mentions "Permission Denied", your Firestore Security Rules are blocking access.</li>
+                </ul>
             </p>
             <p>
-                You can set this in the <strong>Firebase Console</strong> -&gt; <strong>Firestore Database</strong> -&gt; <strong>Rules</strong> tab. A common rule for public read access is:
+                For public read access, your <strong>Firestore Rules</strong> should be set to:
             </p>
           </div>
           <pre className="text-xs bg-gray-900 p-3 mt-3 rounded-md block max-w-md mx-auto text-left overflow-x-auto">
