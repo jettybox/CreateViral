@@ -4,7 +4,7 @@ import { getFirestore, Firestore } from "https://aistudiocdn.com/firebase@^10.12
 
 // Your web app's Firebase configuration from your project settings
 const firebaseConfig = {
-  apiKey: "AIzaSyA0UV9I-E0pDCR4azCXCp0I1hd1NqCV200",
+  apiKey: "AIzaSyA0UV9I-E0pDCR4azCXCp0I1hdlNqCV200",
   authDomain: "createviral-database.firebaseapp.com",
   projectId: "createviral-database",
   storageBucket: "createviral-database.firebasestorage.app",
