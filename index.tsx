@@ -4,7 +4,7 @@ import App from './App';
 
 // Explicitly import firestore for its side-effects to ensure the service is registered.
 // This should fix the "Service firestore is not available" runtime error.
-import "firebase/firestore";
+import "https://aistudiocdn.com/firebase@^10.12.3/firestore.js";
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
