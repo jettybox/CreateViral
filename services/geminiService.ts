@@ -1,15 +1,34 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORIES } from '../constants';
 
-// Assume process.env.API_KEY is configured in the environment
-const API_KEY = process.env.API_KEY;
-if (!API_KEY) {
-  // In a real app, you'd want to handle this more gracefully.
-  // For this demo, we'll throw an error if the key is missing.
-  throw new Error("API_KEY environment variable not set.");
-}
+// Lazily initialize the AI client.
+let ai: GoogleGenAI | null = null;
 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+/**
+ * Gets the GoogleGenAI client instance.
+ * Returns null and logs a warning if the API key is not configured.
+ * This prevents the frontend from crashing and allows it to function
+ * with AI features disabled.
+ */
+const getAiClient = (): GoogleGenAI | null => {
+  if (ai) {
+    return ai;
+  }
+  
+  // Safely access the API key from environment variables.
+  // This is compatible with Vercel and other environments where `process` might not be defined on the client.
+  const API_KEY = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+  
+  if (!API_KEY) {
+    // Log a warning for the frontend instead of throwing an error.
+    console.warn("API_KEY environment variable not set. AI features are disabled.");
+    return null;
+  }
+  
+  ai = new GoogleGenAI({ apiKey: API_KEY });
+  return ai;
+};
+
 
 const model = 'gemini-2.5-flash';
 
@@ -60,6 +79,12 @@ export async function analyzeVideoContent(base64Frames: string[]): Promise<{
   price: number;
   commercialAppeal: number;
 }> {
+  const aiClient = getAiClient();
+  if (!aiClient) {
+    // Provide a clear error for the backend developer when the key is missing.
+    throw new Error("Gemini AI client failed to initialize. Make sure the API_KEY environment variable is set in your serverless function environment.");
+  }
+
   const imageParts = base64Frames.map(frame => ({
     inlineData: {
       mimeType: 'image/jpeg',
@@ -83,7 +108,7 @@ export async function analyzeVideoContent(base64Frames: string[]): Promise<{
   `;
   
   try {
-    const response = await ai.models.generateContent({
+    const response = await aiClient.models.generateContent({
       model: model,
       contents: {
           parts: [...imageParts, { text: prompt }],
@@ -128,6 +153,12 @@ const searchResponseSchema = {
 export async function getEnhancedSearchTerms(query: string): Promise<string[]> {
     if (!query) return [];
 
+    const aiClient = getAiClient();
+    // If the client isn't available (no API key on frontend), gracefully fall back to basic search.
+    if (!aiClient) {
+        return [query];
+    }
+
     const prompt = `
         You are a semantic search assistant for a stock video website. The user has entered a search query.
         Your task is to generate a list of up to 10 related keywords, synonyms, and conceptually similar terms to broaden the search results.
@@ -139,7 +170,7 @@ export async function getEnhancedSearchTerms(query: string): Promise<string[]> {
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
             contents: { parts: [{ text: prompt }] },
             config: {
