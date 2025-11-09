@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { collection, onSnapshot } from 'https://aistudiocdn.com/firebase@^10.12.3/firestore.js';
-import { db, firebaseInitError } from './firebase-config';
+import { collection, onSnapshot, Firestore } from 'https://aistudiocdn.com/firebase@^10.12.3/firestore.js';
+import { initializeFirebase } from './firebase-config';
 import { Header } from './components/Header';
 import { CategoryFilter } from './components/CategoryFilter';
 import { VideoGrid } from './components/VideoGrid';
@@ -33,9 +33,10 @@ const DiscountBanner: React.FC = () => {
 };
 
 export default function App() {
+  const [dbInstance, setDbInstance] = useState<Firestore | null>(null);
   const [videos, setVideos] = useState<VideoFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [connectionError, setConnectionError] = useState<string | null>(firebaseInitError);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [enhancedSearchTerms, setEnhancedSearchTerms] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -48,22 +49,27 @@ export default function App() {
   const [cart, setCart] = useState<string[]>([]); // Array of video IDs
   const isAdmin = useAdminMode();
 
+  // Effect to initialize Firebase connection on component mount.
   useEffect(() => {
-    // If Firebase failed to initialize, don't attempt to connect.
-    // The error is already set in useState and will be displayed by renderContent.
-    if (firebaseInitError || !db) {
+    const { db, firebaseInitError } = initializeFirebase();
+    if (db) {
+      setDbInstance(db);
+    } else {
+      setConnectionError(firebaseInitError);
       setIsLoading(false);
-      if (!firebaseInitError) {
-          setConnectionError("Database service is not available. Please check your Firebase configuration.");
-      }
+    }
+  }, []); // Empty array ensures this runs only once.
+
+  // Effect to fetch data once the database instance is available.
+  useEffect(() => {
+    // Don't run if the DB isn't initialized yet.
+    if (!dbInstance) {
       return;
     }
-
-    setIsLoading(true);
-    setConnectionError(null);
     
+    setIsLoading(true);
     // Set up a real-time listener to the 'videos' collection in Firestore
-    const unsubscribe = onSnapshot(collection(db, "videos"), (snapshot) => {
+    const unsubscribe = onSnapshot(collection(dbInstance, "videos"), (snapshot) => {
       const videosData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as VideoFile[];
       setVideos(videosData);
       setIsLoading(false);
@@ -79,7 +85,7 @@ export default function App() {
 
     // Clean up the listener when the component unmounts
     return () => unsubscribe();
-  }, []);
+  }, [dbInstance]); // This effect re-runs only if dbInstance changes.
 
   useEffect(() => {
     setCurrentPage(1);
