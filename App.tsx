@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot } from 'https://aistudiocdn.com/firebase@10.12.3/firestore';
 import { db } from './firebase-config';
 import { Header } from './components/Header';
 import { CategoryFilter } from './components/CategoryFilter';
@@ -62,7 +62,7 @@ export default function App() {
       let errorMessage = "Could not connect to the database. Please check the browser console for details and ensure your `firebase-config.ts` file is correct.";
       
       if (error.message && error.message.includes('firestore is not available')) {
-          errorMessage = "Service firestore is not available. This is a known issue with production builds and module loading. The current fix should resolve it, please try a hard refresh.";
+          errorMessage = "Service firestore is not available. This can happen with certain build tools and module loading. Using direct CDN imports should resolve this issue.";
       } else if (error.code === 'permission-denied') {
         errorMessage = "Permission Denied: Could not read from the 'videos' collection. Please check your Firestore Security Rules in the Firebase Console.";
       }
