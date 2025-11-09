@@ -11,7 +11,7 @@ import { SortDropdown, SortOption } from './components/SortDropdown';
 import { Pagination } from './components/Pagination';
 import type { VideoFile } from './types';
 import { CATEGORIES } from './constants';
-import { FilmIcon, SparklesIcon } from './components/Icons';
+import { FilmIcon, SparklesIcon, WarningIcon } from './components/Icons';
 import { getEnhancedSearchTerms } from './services/geminiService';
 import { useAdminMode } from './hooks/useAdminMode';
 import { Spinner } from './components/Spinner';
@@ -35,6 +35,7 @@ const DiscountBanner: React.FC = () => {
 export default function App() {
   const [videos, setVideos] = useState<VideoFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [enhancedSearchTerms, setEnhancedSearchTerms] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -49,13 +50,19 @@ export default function App() {
 
   useEffect(() => {
     setIsLoading(true);
+    setConnectionError(null);
     // Set up a real-time listener to the 'videos' collection in Firestore
     const unsubscribe = onSnapshot(collection(db, "videos"), (snapshot) => {
       const videosData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as VideoFile[];
       setVideos(videosData);
       setIsLoading(false);
-    }, (error) => {
+    }, (error: any) => {
       console.error("Error fetching videos from Firestore: ", error);
+      let errorMessage = "Could not connect to the database. Please check the browser console for details and ensure your `firebase-config.ts` file is correct.";
+      if (error.code === 'permission-denied') {
+        errorMessage = "Permission Denied: Could not read from the 'videos' collection. Please check your Firestore Security Rules in the Firebase Console.";
+      }
+      setConnectionError(errorMessage);
       setIsLoading(false); // Stop loading even if there's an error
     });
 
@@ -170,13 +177,45 @@ export default function App() {
         );
     }
 
+    if (connectionError) {
+      return (
+        <div className="text-center py-12 px-4 bg-red-900/20 border border-red-500/30 rounded-lg">
+          <WarningIcon className="w-16 h-16 mx-auto text-red-400" />
+          <h2 className="mt-4 text-2xl font-bold text-red-300">Database Connection Error</h2>
+          <p className="text-red-400 mt-2 max-w-lg mx-auto">{connectionError}</p>
+          <div className="text-gray-400 mt-4 text-sm max-w-lg mx-auto text-left space-y-2">
+            <p>
+                If the error mentions "Permission Denied", the most likely cause is your Firestore Security Rules. For a public website that needs to read video data, you must explicitly allow it.
+            </p>
+            <p>
+                You can set this in the <strong>Firebase Console</strong> -&gt; <strong>Firestore Database</strong> -&gt; <strong>Rules</strong> tab. A common rule for public read access is:
+            </p>
+          </div>
+          <pre className="text-xs bg-gray-900 p-3 mt-3 rounded-md block max-w-md mx-auto text-left overflow-x-auto">
+            <code>
+{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow anyone to read from the 'videos' collection
+    match /videos/{videoId} {
+      allow read: if true;
+      allow write: if false; // Protect your data
+    }
+  }
+}`}
+            </code>
+          </pre>
+        </div>
+      );
+    }
+
     if (videos.length === 0) {
         return (
             <div className="text-center py-20 bg-gray-800/50 rounded-lg">
                 <FilmIcon className="w-16 h-16 mx-auto text-gray-500" />
                 <h2 className="mt-4 text-2xl font-bold text-gray-300">Your Collection is Empty</h2>
                 <p className="text-gray-400 mt-2 max-w-md mx-auto">
-                  Videos added to your backend will appear here. If you've just configured Firebase, ensure your security rules are in "Test Mode" and your config details are correct in <code className="text-xs bg-gray-700 p-1 rounded">firebase-config.ts</code>.
+                  It looks like the connection to Firebase was successful, but there are no videos in your 'videos' collection yet. Videos added to your backend will appear here automatically.
                 </p>
             </div>
         );
