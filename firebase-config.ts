@@ -1,6 +1,5 @@
-// Import the functions you need from the SDKs you need.
-// This single import is sufficient to both load the function and register the service.
-import { initializeApp } from "https://aistudiocdn.com/firebase@^10.12.3/app.js";
+// Import the functions you need from the SDKs you need
+import { initializeApp, FirebaseApp } from "https://aistudiocdn.com/firebase@^10.12.3/app.js";
 import { getFirestore, Firestore } from "https://aistudiocdn.com/firebase@^10.12.3/firestore.js";
 
 // Your web app's Firebase configuration from your project settings
@@ -14,22 +13,33 @@ const firebaseConfig = {
   measurementId: "G-WC24HZVF3D"
 };
 
-
+// Singleton instances to ensure we only initialize once.
+let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
 let firebaseInitError: string | null = null;
 
-try {
-  // Basic check to prevent running with placeholder values.
-  if (firebaseConfig.apiKey.startsWith("YOUR_")) {
-    throw new Error("Firebase configuration contains placeholder values. Please update firebase-config.ts with your actual project keys.");
+/**
+ * Initializes Firebase and Firestore, but only if they haven't been initialized yet.
+ * This singleton pattern prevents race conditions by controlling the exact moment of initialization.
+ * @returns An object containing the Firestore instance (`db`) and any initialization error (`firebaseInitError`).
+ */
+export function initializeFirebase() {
+  // If we've already tried to initialize, return the previous result.
+  if (db || firebaseInitError) {
+    return { db, firebaseInitError };
   }
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  // Get a reference to the Firestore service
-  db = getFirestore(app);
-} catch (e: any) {
-  console.error("CRITICAL: Firebase initialization failed.", e);
-  firebaseInitError = e.message || "An unknown error occurred during Firebase initialization. Check the browser console for more details.";
-}
 
-export { db, firebaseInitError };
+  try {
+    // Initialize Firebase
+    app = initializeApp(firebaseConfig);
+    // Get a reference to the Firestore service
+    db = getFirestore(app);
+  } catch (e: any) {
+    console.error("CRITICAL: Firebase initialization failed.", e);
+    firebaseInitError = e.message || "An unknown error occurred during Firebase initialization. Check the browser console for more details.";
+    // Ensure db is null on error so we don't try to use a broken instance.
+    db = null;
+  }
+  
+  return { db, firebaseInitError };
+}
