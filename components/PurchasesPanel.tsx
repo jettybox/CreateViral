@@ -44,6 +44,21 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
 
       // Notify parent component that the download is complete
       onVideoDownloaded(video.id);
+      
+      // Provide guidance for mobile users
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile) {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+        
+        // Use a small timeout to allow the download to initiate before showing the alert
+        setTimeout(() => {
+          if (isIOS) {
+            alert("Download Started!\n\nYour video has been saved to the 'Files' app on your iPhone/iPad. Look in the 'Downloads' folder. From there, you can save it to your Photos library.");
+          } else { // Generic message for Android and other mobile OS
+            alert("Download Started!\n\nCheck your device's 'Downloads' folder or your browser's download manager to find your video.");
+          }
+        }, 500);
+      }
 
     } catch (error) {
       console.error("Download failed:", error);
