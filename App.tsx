@@ -42,6 +42,7 @@ export default function App() {
   const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
   const [cart, setCart] = useState<string[]>([]); // Array of video IDs
   const [purchasedVideoIds, setPurchasedVideoIds] = useState<string[]>([]);
+  const [downloadedVideoIds, setDownloadedVideoIds] = useState<string[]>([]);
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
   const [isDiscountBannerVisible, setIsDiscountBannerVisible] = useState(true);
   const isAdmin = useAdminMode();
@@ -110,8 +111,12 @@ export default function App() {
       if (storedPurchases) {
         setPurchasedVideoIds(JSON.parse(storedPurchases));
       }
+      const storedDownloads = localStorage.getItem('downloadedVideoIds');
+      if (storedDownloads) {
+        setDownloadedVideoIds(JSON.parse(storedDownloads));
+      }
     } catch (e) {
-      console.error("Failed to load purchased videos from localStorage", e);
+      console.error("Failed to load user data from localStorage", e);
     }
   }, []);
 
@@ -123,6 +128,15 @@ export default function App() {
       console.error("Failed to save purchased videos to localStorage", e);
     }
   }, [purchasedVideoIds]);
+
+  // Effect to save downloaded video IDs to localStorage whenever they change.
+  useEffect(() => {
+    try {
+      localStorage.setItem('downloadedVideoIds', JSON.stringify(downloadedVideoIds));
+    } catch (e) {
+      console.error("Failed to save downloaded videos to localStorage", e);
+    }
+  }, [downloadedVideoIds]);
 
 
   useEffect(() => {
@@ -260,6 +274,9 @@ Upon successful payment, the items would be added to the user's "My Downloads" l
     setIsPurchasesOpen(true);
   }, [cart, videos]);
 
+  const handleVideoDownloaded = useCallback((videoId: string) => {
+    setDownloadedVideoIds(prev => [...new Set([...prev, videoId])]);
+  }, []);
 
   const handleSaveApiKey = useCallback((key: string) => {
     try {
@@ -454,6 +471,8 @@ service cloud.firestore {
         <PurchasesPanel
           items={purchasedItems}
           onClose={() => setIsPurchasesOpen(false)}
+          downloadedVideoIds={downloadedVideoIds}
+          onVideoDownloaded={handleVideoDownloaded}
         />
       )}
 
