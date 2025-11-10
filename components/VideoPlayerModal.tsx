@@ -12,13 +12,14 @@ interface VideoPlayerModalProps {
   onVideoDelete: (videoId: string) => void;
   onAddToCart: (videoId: string) => void;
   isInCart: boolean;
+  isPurchased: boolean;
   isAdmin: boolean;
 }
 
-const formInputClass = "w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white";
+const formInputClass = "w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white disabled:opacity-50";
 const formLabelClass = "block text-sm font-medium text-gray-300 mb-1";
 
-export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClose, onVideoUpdate, onVideoDelete, onAddToCart, isInCart, isAdmin }) => {
+export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClose, onVideoUpdate, onVideoDelete, onAddToCart, isInCart, isPurchased, isAdmin }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableVideo, setEditableVideo] = useState<VideoFile>(video);
   const [keywordsInput, setKeywordsInput] = useState('');
@@ -68,7 +69,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
     const { name, value, type } = e.target;
     if (type === 'checkbox') {
         const { checked } = e.target as HTMLInputElement;
-        setEditableVideo(prev => ({ ...prev, [name]: checked }));
+        if (name === 'isFree' && checked) {
+            setEditableVideo(prev => ({ ...prev, isFree: true, price: 0 }));
+        } else {
+            setEditableVideo(prev => ({ ...prev, [name]: checked }));
+        }
     } else {
         setEditableVideo(prev => ({
           ...prev,
@@ -125,13 +130,27 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
                           className="h-6 w-6 text-indigo-500 bg-gray-800 border-gray-500 rounded focus:ring-indigo-500 focus:ring-offset-gray-700 cursor-pointer"
                       />
                   </div>
+                   <div className="flex items-center justify-between bg-gray-700 p-3 rounded-lg">
+                      <label htmlFor="isFree" className="font-medium text-white flex items-center gap-2">
+                        <span className="px-2 py-1 text-xs rounded-full bg-green-700 text-green-200">FREE</span>
+                        Mark as Free
+                      </label>
+                      <input
+                          type="checkbox"
+                          id="isFree"
+                          name="isFree"
+                          checked={editableVideo.isFree}
+                          onChange={handleInputChange}
+                          className="h-6 w-6 text-indigo-500 bg-gray-800 border-gray-500 rounded focus:ring-indigo-500 focus:ring-offset-gray-700 cursor-pointer"
+                      />
+                  </div>
                   <div>
                     <label htmlFor="title" className={formLabelClass}>Title</label>
                     <input type="text" id="title" name="title" value={editableVideo.title} onChange={handleInputChange} className={formInputClass} />
                   </div>
                    <div>
                     <label htmlFor="price" className={formLabelClass}>Price ($)</label>
-                    <input type="number" id="price" name="price" value={editableVideo.price} onChange={handleInputChange} className={formInputClass} min="0" step="0.01" />
+                    <input type="number" id="price" name="price" value={editableVideo.price} onChange={handleInputChange} className={formInputClass} min="0" step="0.01" disabled={editableVideo.isFree} />
                   </div>
                   <div>
                     <label htmlFor="description" className={formLabelClass}>Description</label>
@@ -227,10 +246,10 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
                   )}
                   <button 
                     onClick={() => onAddToCart(video.id)} 
-                    disabled={isInCart}
+                    disabled={isInCart || isPurchased}
                     className="w-full py-3 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed bg-indigo-600 hover:bg-indigo-700"
                   >
-                    {isInCart ? <><CheckIcon className="w-6 h-6" /> Added to Cart</> : <><CartIcon className="w-6 h-6" /> Add to Cart - ${video.price.toFixed(2)}</>}
+                    {isPurchased ? <><CheckIcon className="w-6 h-6" /> Owned</> : isInCart ? <><CheckIcon className="w-6 h-6" /> Added to Cart</> : <><CartIcon className="w-6 h-6" /> Add to Cart - {video.isFree ? 'Free' : `$${video.price.toFixed(2)}`}</>}
                   </button>
                 </>
               )}
