@@ -18,7 +18,7 @@ import { setProtectedUrls } from './services/videoCacheService';
 import { useAdminMode } from './hooks/useAdminMode';
 import { Spinner } from './components/Spinner';
 import { ApiKeyBanner } from './components/ApiKeyBanner';
-import { TroubleshootingGuide } from './components/TroubleshootingGuide.tsx';
+import { Troubleshooting } from './components/Troubleshooting';
 import { DiscountBanner } from './components/DiscountBanner';
 
 const VIDEOS_PER_PAGE = 24;
@@ -357,7 +357,7 @@ service cloud.firestore {
       )}
 
       {isTroubleshootingOpen && (
-        <TroubleshootingGuide onClose={() => setIsTroubleshootingOpen(false)} />
+        <Troubleshooting onClose={() => setIsTroubleshootingOpen(false)} />
       )}
       
       {isCartOpen && (
