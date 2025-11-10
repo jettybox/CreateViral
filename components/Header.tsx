@@ -9,7 +9,7 @@ interface HeaderProps {
   onTroubleshootingClick: () => void;
   cartItemCount: number;
   onCartClick: () => void;
-  purchasedItemCount: number;
+  undownloadedItemCount: number;
   onPurchasesClick: () => void;
   isAdmin: boolean;
   onUploadClick: () => void;
@@ -22,7 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   onTroubleshootingClick, 
   cartItemCount, 
   onCartClick,
-  purchasedItemCount,
+  undownloadedItemCount,
   onPurchasesClick,
   isAdmin, 
   onUploadClick 
@@ -97,9 +97,9 @@ export const Header: React.FC<HeaderProps> = ({
             aria-label="Open my downloads"
           >
             <DownloadIcon className="w-6 h-6 text-gray-300" />
-            {purchasedItemCount > 0 && (
+            {undownloadedItemCount > 0 && (
               <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-xs font-bold text-white">
-                {purchasedItemCount}
+                {undownloadedItemCount}
               </span>
             )}
           </button>
