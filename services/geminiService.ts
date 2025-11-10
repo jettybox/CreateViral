@@ -1,8 +1,50 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORIES } from '../constants';
 
-// Lazily initialize the AI client.
+// Lazily initialize the AI client and cache the key.
 let ai: GoogleGenAI | null = null;
+let cachedApiKey: string | null = null;
+
+/**
+ * Retrieves the API key by checking environment variables first,
+ * then falling back to localStorage. This supports both production
+ * environments and interactive web IDEs with persistence.
+ * @returns {string | null} The API key or null if not found.
+ */
+const getApiKey = (): string | null => {
+    if (cachedApiKey) return cachedApiKey;
+    
+    // Priority 1: Environment variables (for production/CI/CD)
+    const envKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+    // Real Gemini keys are 39 characters long. This check is a safeguard.
+    if (envKey && envKey.trim().length > 30) {
+        cachedApiKey = envKey;
+        return cachedApiKey;
+    }
+    
+    // Priority 2: Local storage (for web IDEs and demos)
+    try {
+        const storedKey = localStorage.getItem('gemini_api_key');
+        if (storedKey && storedKey.trim().length > 30) {
+            cachedApiKey = storedKey;
+            return cachedApiKey;
+        }
+    } catch (e) {
+        // This can happen in some environments or private browsing modes.
+        console.warn("Could not access localStorage.");
+    }
+    
+    return null;
+}
+
+/**
+ * Checks if the Gemini API key is available from any source.
+ * @returns {boolean} True if the key is available.
+ */
+export const isApiKeyAvailable = (): boolean => {
+    return getApiKey() !== null;
+};
+
 
 /**
  * Gets the GoogleGenAI client instance.
@@ -15,13 +57,10 @@ const getAiClient = (): GoogleGenAI | null => {
     return ai;
   }
   
-  // Safely access the API key from environment variables.
-  // This is compatible with Vercel and other environments where `process` might not be defined on the client.
-  const API_KEY = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+  const API_KEY = getApiKey();
   
   if (!API_KEY) {
-    // Log a warning for the frontend instead of throwing an error.
-    console.warn("API_KEY environment variable not set. AI features are disabled.");
+    console.warn("Gemini API key not found. AI features are disabled.");
     return null;
   }
   
