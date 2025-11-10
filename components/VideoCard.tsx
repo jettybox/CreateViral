@@ -9,9 +9,10 @@ interface VideoCardProps {
   onSelect: () => void;
   onAddToCart: () => void;
   isInCart: boolean;
+  onThumbnailGenerated: (dataUrl: string) => void;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart, onThumbnailGenerated }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(true);
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
@@ -104,7 +105,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-            videoElement.poster = canvas.toDataURL('image/jpeg');
+            const dataUrl = canvas.toDataURL('image/jpeg');
+            videoElement.poster = dataUrl;
+            onThumbnailGenerated(dataUrl);
           }
         } catch (error) {
           console.error("Error generating thumbnail from video:", error);
