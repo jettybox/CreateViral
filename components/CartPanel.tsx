@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { VideoFile } from '../types';
-import { XIcon, TrashIcon } from './Icons';
+import { XIcon, TrashIcon, SparklesIcon } from './Icons';
 
 interface CartPanelProps {
   items: VideoFile[];
@@ -65,32 +65,46 @@ This is where the application would integrate with a payment processor like Stri
                 <div className="mt-8">
                   <div className="flow-root">
                     {items.length > 0 ? (
-                      <ul role="list" className="-my-6 divide-y divide-gray-700">
-                        {items.map((item) => (
-                          <li key={item.id} className="py-6 flex">
-                            <div className="flex-shrink-0 w-24 h-14 border border-gray-700 rounded-md overflow-hidden">
-                              <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
-                            </div>
-                            <div className="ml-4 flex-1 flex flex-col">
-                              <div>
-                                <div className="flex justify-between text-base font-medium text-white">
-                                  <h3>{item.title}</h3>
-                                  <p className="ml-4">${item.price.toFixed(2)}</p>
-                                </div>
-                                <p className="mt-1 text-sm text-gray-400 truncate">{item.categories.join(', ')}</p>
+                      <>
+                        <div className="p-3 bg-indigo-900/50 border border-indigo-500/30 rounded-md text-center mb-6">
+                            <p className="text-sm text-indigo-200 flex items-center justify-center gap-2">
+                                <SparklesIcon className="w-5 h-5 text-yellow-300 flex-shrink-0" />
+                                <strong>Bundle &amp; Save!</strong> Discounts apply automatically.
+                            </p>
+                        </div>
+                        <ul role="list" className="-my-6 divide-y divide-gray-700">
+                          {items.map((item) => (
+                            <li key={item.id} className="py-6 flex">
+                              <div className="flex-shrink-0 w-24 h-14 border border-gray-700 rounded-md overflow-hidden bg-gray-900">
+                                <img 
+                                  src={item.generatedThumbnail || item.thumbnail} 
+                                  alt={item.title} 
+                                  className="w-full h-full object-cover" 
+                                  // Add a simple error handler in case both thumbnail URLs fail
+                                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                                />
                               </div>
-                              <div className="flex-1 flex items-end justify-between text-sm">
-                                <p className="text-gray-500">Qty 1</p>
-                                <div className="flex">
-                                  <button onClick={() => onRemoveItem(item.id)} type="button" className="font-medium text-indigo-400 hover:text-indigo-300">
-                                    Remove
-                                  </button>
+                              <div className="ml-4 flex-1 flex flex-col">
+                                <div>
+                                  <div className="flex justify-between text-base font-medium text-white">
+                                    <h3>{item.title}</h3>
+                                    <p className="ml-4">${item.price.toFixed(2)}</p>
+                                  </div>
+                                  <p className="mt-1 text-sm text-gray-400 truncate">{item.categories.join(', ')}</p>
+                                </div>
+                                <div className="flex-1 flex items-end justify-between text-sm">
+                                  <p className="text-gray-500">Qty 1</p>
+                                  <div className="flex">
+                                    <button onClick={() => onRemoveItem(item.id)} type="button" className="font-medium text-indigo-400 hover:text-indigo-300">
+                                      Remove
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
                     ) : (
                       <div className="text-center py-10">
                         <p className="text-gray-400">Your cart is empty.</p>
