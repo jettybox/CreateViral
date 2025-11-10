@@ -7,9 +7,10 @@ interface CartPanelProps {
   onClose: () => void;
   onRemoveItem: (videoId: string) => void;
   onClearCart: () => void;
+  onCheckout: () => void;
 }
 
-export const CartPanel: React.FC<CartPanelProps> = ({ items, onClose, onRemoveItem, onClearCart }) => {
+export const CartPanel: React.FC<CartPanelProps> = ({ items, onClose, onRemoveItem, onClearCart, onCheckout }) => {
   const { subtotal, discount, total } = useMemo(() => {
     const currentSubtotal = items.reduce((acc, item) => acc + item.price, 0);
     const itemCount = items.length;
@@ -32,17 +33,6 @@ export const CartPanel: React.FC<CartPanelProps> = ({ items, onClose, onRemoveIt
       total: finalTotal,
     };
   }, [items]);
-
-  const handleCheckout = () => {
-    alert(`Checkout for ${items.length} item(s) totaling $${total.toFixed(2)}.
-
-This is where the application would integrate with a payment processor like Stripe.
-
-1. The cart details would be sent to a secure backend function.
-2. That function would create a payment session with Stripe.
-3. The user would be redirected to Stripe's secure checkout page.
-4. Upon successful payment, the user would be granted access to download the videos.`);
-  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
@@ -88,7 +78,7 @@ This is where the application would integrate with a payment processor like Stri
                                 <div>
                                   <div className="flex justify-between text-base font-medium text-white">
                                     <h3>{item.title}</h3>
-                                    <p className="ml-4">${item.price.toFixed(2)}</p>
+                                    <p className="ml-4">{item.isFree ? 'Free' : `$${item.price.toFixed(2)}`}</p>
                                   </div>
                                   <p className="mt-1 text-sm text-gray-400 truncate">{item.categories.join(', ')}</p>
                                 </div>
@@ -135,10 +125,10 @@ This is where the application would integrate with a payment processor like Stri
                   <p className="mt-2 text-sm text-gray-400">Shipping and taxes calculated at checkout.</p>
                   <div className="mt-6">
                     <button
-                      onClick={handleCheckout}
+                      onClick={onCheckout}
                       className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700"
                     >
-                      Proceed to Checkout
+                      {total > 0 ? `Proceed to Checkout` : 'Get Free Downloads'}
                     </button>
                   </div>
                    <div className="mt-4 flex justify-center text-sm text-center text-gray-400">
