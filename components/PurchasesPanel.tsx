@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import type { VideoFile } from '../types';
-import { XIcon, DownloadIcon } from './Icons';
+import { XIcon, DownloadIcon, CheckIcon } from './Icons';
 import { Spinner } from './Spinner';
 
 interface PurchasesPanelProps {
   items: VideoFile[];
   onClose: () => void;
+  downloadedVideoIds: string[];
+  onVideoDownloaded: (videoId: string) => void;
 }
 
-export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose }) => {
+export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, downloadedVideoIds, onVideoDownloaded }) => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const handleDownload = async (video: VideoFile) => {
@@ -39,6 +41,9 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose }
 
       // Clean up the temporary blob URL to free up memory.
       window.URL.revokeObjectURL(blobUrl);
+
+      // Notify parent component that the download is complete
+      onVideoDownloaded(video.id);
 
     } catch (error) {
       console.error("Download failed:", error);
@@ -71,44 +76,53 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose }
                   <div className="flow-root">
                     {items.length > 0 ? (
                       <ul role="list" className="-my-6 divide-y divide-gray-700">
-                        {items.map((item) => (
-                          <li key={item.id} className="py-6 flex">
-                            <div className="flex-shrink-0 w-24 h-14 border border-gray-700 rounded-md overflow-hidden bg-gray-900">
-                              <img 
-                                src={item.generatedThumbnail || item.thumbnail} 
-                                alt={item.title} 
-                                className="w-full h-full object-cover" 
-                                onError={(e) => (e.currentTarget.style.display = 'none')}
-                              />
-                            </div>
-                            <div className="ml-4 flex-1 flex flex-col">
-                              <div>
-                                <div className="flex justify-between text-base font-medium text-white">
-                                  <h3>{item.title}</h3>
+                        {items.map((item) => {
+                          const isDownloaded = downloadedVideoIds.includes(item.id);
+                          return (
+                            <li key={item.id} className="py-6 flex">
+                              <div className="flex-shrink-0 w-24 h-14 border border-gray-700 rounded-md overflow-hidden bg-gray-900">
+                                <img 
+                                  src={item.generatedThumbnail || item.thumbnail} 
+                                  alt={item.title} 
+                                  className="w-full h-full object-cover" 
+                                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                                />
+                              </div>
+                              <div className="ml-4 flex-1 flex flex-col">
+                                <div>
+                                  <div className="flex justify-between text-base font-medium text-white">
+                                    <h3>{item.title}</h3>
+                                  </div>
+                                  <p className="mt-1 text-sm text-gray-400 truncate">{item.categories.join(', ')}</p>
                                 </div>
-                                <p className="mt-1 text-sm text-gray-400 truncate">{item.categories.join(', ')}</p>
-                              </div>
-                              <div className="flex-1 flex items-end justify-between text-sm">
-                                <button 
-                                  onClick={() => handleDownload(item)} 
-                                  type="button" 
-                                  className="font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"
-                                  disabled={downloadingId === item.id}
-                                >
-                                  {downloadingId === item.id ? (
-                                    <>
-                                      <Spinner className="w-4 h-4" /> Downloading...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <DownloadIcon className="w-4 h-4" /> Download
-                                    </>
+                                <div className="flex-1 flex items-end justify-between text-sm">
+                                  {isDownloaded && (
+                                    <div className="flex items-center gap-1 text-green-400">
+                                        <CheckIcon className="w-4 h-4" />
+                                        <span className="font-medium">Downloaded</span>
+                                    </div>
                                   )}
-                                </button>
+                                  <button 
+                                    onClick={() => handleDownload(item)} 
+                                    type="button" 
+                                    className="font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait ml-auto"
+                                    disabled={downloadingId === item.id}
+                                  >
+                                    {downloadingId === item.id ? (
+                                      <>
+                                        <Spinner className="w-4 h-4" /> Downloading...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <DownloadIcon className="w-4 h-4" /> {isDownloaded ? 'Download Again' : 'Download'}
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </ul>
                     ) : (
                       <div className="text-center py-10">
