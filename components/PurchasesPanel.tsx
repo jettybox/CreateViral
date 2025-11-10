@@ -1,27 +1,54 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { VideoFile } from '../types';
 import { XIcon, DownloadIcon } from './Icons';
+import { Spinner } from './Spinner';
 
 interface PurchasesPanelProps {
   items: VideoFile[];
   onClose: () => void;
 }
 
-const handleDownload = (video: VideoFile) => {
-    // This function creates a temporary link to trigger the browser's download functionality.
-    const link = document.createElement('a');
-    link.href = video.url;
-    // Suggest a filename for the download.
-    const filename = video.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    link.setAttribute('download', `${filename}.mp4`);
-    // Append to the document, click, and then remove.
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-};
-
-
 export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose }) => {
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleDownload = async (video: VideoFile) => {
+    if (downloadingId === video.id) return; // Prevent multiple clicks while downloading
+
+    setDownloadingId(video.id);
+    try {
+      // Fetch the video data. This bypasses the browser's default behavior of navigating to the URL.
+      const response = await fetch(video.url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch video: ${response.statusText}`);
+      }
+      const blob = await response.blob();
+
+      // Create a temporary local URL for the downloaded blob.
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      // Create a temporary anchor element to trigger the download.
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      const filename = video.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      link.setAttribute('download', `${filename}.mp4`);
+      
+      // Append to the document, click to trigger download, and then remove.
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up the temporary blob URL to free up memory.
+      window.URL.revokeObjectURL(blobUrl);
+
+    } catch (error) {
+      console.error("Download failed:", error);
+      alert("Sorry, the download could not be completed. Please check the console for details.");
+    } finally {
+      setDownloadingId(null); // Reset the downloading state
+    }
+  };
+
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
       <div className="absolute inset-0 overflow-hidden">
@@ -62,8 +89,21 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose }
                                 <p className="mt-1 text-sm text-gray-400 truncate">{item.categories.join(', ')}</p>
                               </div>
                               <div className="flex-1 flex items-end justify-between text-sm">
-                                <button onClick={() => handleDownload(item)} type="button" className="font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
-                                  <DownloadIcon className="w-4 h-4" /> Download
+                                <button 
+                                  onClick={() => handleDownload(item)} 
+                                  type="button" 
+                                  className="font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"
+                                  disabled={downloadingId === item.id}
+                                >
+                                  {downloadingId === item.id ? (
+                                    <>
+                                      <Spinner className="w-4 h-4" /> Downloading...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <DownloadIcon className="w-4 h-4" /> Download
+                                    </>
+                                  )}
                                 </button>
                               </div>
                             </div>
