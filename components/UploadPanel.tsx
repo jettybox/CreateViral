@@ -1,15 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { collection, writeBatch, doc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
 import { db } from '../firebase-config';
 import type { VideoFile } from '../types';
 import { XIcon, UploadIcon, CheckIcon, SparklesIcon } from './Icons';
 import { Spinner } from './Spinner';
+import { enhanceVideoMetadata, isApiKeyAvailable } from '../services/geminiService';
 
 interface UploadPanelProps {
   onClose: () => void;
 }
 
-type Status = 'idle' | 'processing' | 'error' | 'success';
+type Status = 'idle' | 'file-selected' | 'processing' | 'enhancing' | 'error' | 'success';
+
+interface ParsedRow {
+  original: Record<string, string>;
+  enhanced: Partial<VideoFile>;
+  status: 'pending' | 'enhanced' | 'error'
+}
 
 export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -17,19 +24,18 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
   const [status, setStatus] = useState<Status>('idle');
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
+  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
+  const [isGeminiAvailable, setIsGeminiAvailable] = useState(false);
 
   useEffect(() => {
-    // Load the saved prefix from local storage for convenience
     const savedPrefix = localStorage.getItem('b2UrlPrefix');
-    if (savedPrefix) {
-      setB2UrlPrefix(savedPrefix);
-    }
+    if (savedPrefix) setB2UrlPrefix(savedPrefix);
+    setIsGeminiAvailable(isApiKeyAvailable());
   }, []);
 
   const handlePrefixChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPrefix = e.target.value;
     setB2UrlPrefix(newPrefix);
-    // Save to local storage so the user doesn't have to re-enter it
     localStorage.setItem('b2UrlPrefix', newPrefix);
   };
 
@@ -37,170 +43,239 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile && selectedFile.type === 'text/csv') {
       setCsvFile(selectedFile);
+      setStatus('file-selected');
       setErrorMessages([]);
     } else {
       setCsvFile(null);
+      setStatus('idle');
       setErrorMessages(['Please select a valid .csv file.']);
     }
   };
 
-  const parseCSV = (text: string): { header: string[], rows: Record<string, string>[] } => {
+  const parseCSV = (text: string): Record<string, string>[] => {
     const lines = text.trim().replace(/\r\n/g, '\n').split('\n');
     if (lines.length < 2) throw new Error("CSV file must have a header and at least one data row.");
     
-    /**
-     * A robust CSV line parser that handles quoted fields, allowing for commas and escaped quotes within data.
-     * For example, it can correctly parse a field like: "This is a title, with a comma"
-     * @param {string} line - A single line from a CSV file.
-     * @returns {string[]} An array of strings representing the fields.
-     */
     const parseCsvLine = (line: string): string[] => {
       const fields: string[] = [];
       let currentField = '';
       let inQuotes = false;
-
       for (let i = 0; i < line.length; i++) {
         const char = line[i];
-
         if (inQuotes) {
           if (char === '"') {
-            // Check for an escaped double quote ("")
             if (i < line.length - 1 && line[i + 1] === '"') {
-              currentField += '"';
-              i++; // Skip the next quote
+              currentField += '"'; i++;
             } else {
-              inQuotes = false; // End of quoted field
+              inQuotes = false;
             }
           } else {
             currentField += char;
           }
         } else {
           if (char === ',') {
-            fields.push(currentField);
-            currentField = '';
+            fields.push(currentField); currentField = '';
           } else if (char === '"' && currentField.length === 0) {
-            // A quote should only start a quoted field if it's the first character of the field
             inQuotes = true;
           } else {
             currentField += char;
           }
         }
       }
-      fields.push(currentField); // Add the last field
+      fields.push(currentField);
       return fields;
     };
 
     const header = parseCsvLine(lines[0]).map(h => h.trim());
     const rows = lines.slice(1)
-      .filter(line => line.trim() !== '') // Ignore empty lines
+      .filter(line => line.trim() !== '')
       .map((line, index) => {
         const values = parseCsvLine(line);
-        
         if (values.length !== header.length) {
-          throw new Error(`Row ${index + 2}: Column count mismatch. Expected ${header.length} columns, but found ${values.length}. This can happen if a text field contains an unclosed quote mark (").`);
+          throw new Error(`Row ${index + 2}: Column count mismatch. Expected ${header.length}, but found ${values.length}.`);
         }
-
         const rowObject: Record<string, string> = {};
         header.forEach((key, i) => {
           rowObject[key] = values[i] || '';
         });
         return rowObject;
       });
-      
-    if (rows.length === 0) {
-        throw new Error("CSV file contains a header but no data rows.");
-    }
+    if (rows.length === 0) throw new Error("CSV file contains a header but no data rows.");
+    return rows;
+  };
 
-    return { header, rows };
+  const processFile = useCallback(() => {
+    if (!csvFile) return;
+    setStatus('processing');
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const rows = parseCSV(text);
+        setParsedRows(rows.map(row => ({ original: row, enhanced: {}, status: 'pending' })));
+        setProgress({ current: 0, total: rows.length });
+      } catch (e: any) {
+        setErrorMessages([e.message]);
+        setStatus('error');
+      }
+    };
+    reader.readAsText(csvFile);
+  }, [csvFile]);
+
+  useEffect(() => {
+    if (status === 'file-selected') {
+      processFile();
+    }
+  }, [status, processFile]);
+
+  const handleEnhance = async () => {
+    setStatus('enhancing');
+    setProgress({ current: 0, total: parsedRows.length });
+    
+    const newRows = [...parsedRows];
+    for(let i = 0; i < newRows.length; i++) {
+      try {
+        const row = newRows[i];
+        const title = row.original.title || row.original.filename || '';
+        const keywords = row.original.keywords ? row.original.keywords.split(/[,;]/).map(kw => kw.trim()).filter(Boolean) : [];
+
+        if (!title) {
+            throw new Error("Missing 'title' or 'filename' for enhancement.");
+        }
+
+        const enhancedData = await enhanceVideoMetadata({ title, keywords });
+        newRows[i] = { ...row, enhanced: enhancedData, status: 'enhanced' };
+
+      } catch (error: any) {
+        console.error("Enhancement failed for row", i, error);
+        newRows[i] = { ...newRows[i], status: 'error' };
+      }
+      setParsedRows([...newRows]);
+      setProgress(p => ({ ...p, current: i + 1 }));
+    }
+    // No status change here, user can proceed to import from the preview screen
+    setStatus('processing'); // Go back to preview state
   };
 
   const handleImport = async () => {
-    if (!csvFile || !b2UrlPrefix.trim() || !db) {
-      setErrorMessages(['Please provide a CSV file and a valid URL prefix.']);
+    if (!parsedRows.length || !b2UrlPrefix.trim() || !db) {
+      setErrorMessages(['Data is not ready or URL prefix is missing.']);
+      setStatus('error');
       return;
     }
 
     setStatus('processing');
-    setErrorMessages([]);
-    setProgress({ current: 0, total: 0 });
+    setProgress({ current: 0, total: parsedRows.length });
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const text = event.target?.result as string;
-        const { rows } = parseCSV(text);
-        setProgress({ current: 0, total: rows.length });
+    try {
+      const batch = writeBatch(db);
+      const urlPrefix = b2UrlPrefix.endsWith('/') ? b2UrlPrefix : b2UrlPrefix + '/';
 
-        // Use Firestore Batched Writes for efficiency and atomicity.
-        const batch = writeBatch(db);
+      for (let i = 0; i < parsedRows.length; i++) {
+        const { original, enhanced } = parsedRows[i];
         
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            
-            if (!row.filename || !row.title) {
-                console.warn(`Skipping row ${i + 2} due to missing 'filename' or 'title'.`);
-                continue;
-            }
-
-            const videoDoc: Omit<VideoFile, 'id' | 'thumbnail'> & { thumbnail?: string } = {
-              url: `${b2UrlPrefix.endsWith('/') ? b2UrlPrefix : b2UrlPrefix + '/'}${row.filename}`,
-              title: row.title,
-              description: row.description || 'No description available.',
-              keywords: row.keywords ? row.keywords.split(/[,;]/).map(kw => kw.trim()).filter(Boolean) : [],
-              categories: row.categories ? row.categories.split(/[,;]/).map(cat => cat.trim()).filter(Boolean) : [],
-              price: parseFloat(row.price) || 5.00,
-              commercialAppeal: parseInt(row.commercialAppeal, 10) || 75,
-              isFeatured: row.isFeatured?.toLowerCase() === 'true',
-              createdAt: Date.now() - i, // Add a slight offset to maintain order
-              width: parseInt(row.width, 10) || 1920,
-              height: parseInt(row.height, 10) || 1080,
-            };
-            
-            const newVideoRef = doc(collection(db, "videos"));
-            batch.set(newVideoRef, videoDoc);
-            setProgress(prev => ({ ...prev, current: i + 1 }));
+        if (!original.filename) {
+            console.warn(`Skipping row ${i + 2} due to missing 'filename'.`);
+            continue;
         }
 
-        await batch.commit();
-        setStatus('success');
+        const videoUrl = `${urlPrefix}${encodeURIComponent(original.filename)}`;
+        const thumbnailUrl = original.thumbnail_filename
+          ? `${urlPrefix}${encodeURIComponent(original.thumbnail_filename)}`
+          : `${urlPrefix}${encodeURIComponent(original.filename.substring(0, original.filename.lastIndexOf('.')) + '.jpg')}`;
 
-      } catch (error: any) {
-        console.error("Import failed:", error);
-        setErrorMessages([error.message || 'An unknown error occurred during parsing or saving. Check console.']);
-        setStatus('error');
+        const videoDoc: Omit<VideoFile, 'id'> = {
+          url: videoUrl,
+          thumbnail: thumbnailUrl,
+          title: original.title || enhanced.title || 'Untitled',
+          description: enhanced.description || original.description || 'No description available.',
+          keywords: enhanced.keywords || (original.keywords ? original.keywords.split(/[,;]/).map(kw => kw.trim()).filter(Boolean) : []),
+          categories: enhanced.categories || (original.categories ? original.categories.split(/[,;]/).map(cat => cat.trim()).filter(Boolean) : []),
+          price: parseFloat(original.price) || 5.00,
+          commercialAppeal: enhanced.commercialAppeal || parseInt(original.commercialAppeal, 10) || 75,
+          isFeatured: original.isFeatured?.toLowerCase() === 'true',
+          createdAt: Date.now() - i,
+          width: parseInt(original.width, 10) || 1920,
+          height: parseInt(original.height, 10) || 1080,
+        };
+
+        const newVideoRef = doc(collection(db, "videos"));
+        batch.set(newVideoRef, videoDoc);
+        setProgress(prev => ({ ...prev, current: i + 1 }));
       }
-    };
-    
-    reader.onerror = () => {
-        setErrorMessages(['Failed to read the selected file.']);
-        setStatus('error');
-    };
-    
-    reader.readAsText(csvFile);
+
+      await batch.commit();
+      setStatus('success');
+    } catch (error: any) {
+      console.error("Import failed:", error);
+      setErrorMessages([error.message || 'An unknown error occurred. Check console.']);
+      setStatus('error');
+    }
   };
 
   const renderContent = () => {
     if (status === 'success') {
-        return (
-            <div className="text-center p-8">
-                <CheckIcon className="w-16 h-16 text-green-400 mx-auto" />
-                <h3 className="mt-4 text-2xl font-bold text-white">Import Complete!</h3>
-                <p className="mt-2 text-gray-300">{progress.total} videos have been successfully added to your collection.</p>
-                <button
-                    onClick={onClose}
-                    className="mt-6 w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors"
-                >
-                    Close
-                </button>
-            </div>
-        );
+      return (
+        <div className="text-center p-8">
+            <CheckIcon className="w-16 h-16 text-green-400 mx-auto" />
+            <h3 className="mt-4 text-2xl font-bold text-white">Import Complete!</h3>
+            <p className="mt-2 text-gray-300">{progress.total} videos have been successfully added.</p>
+            <button
+                onClick={onClose}
+                className="mt-6 w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors"
+            >
+                Close
+            </button>
+        </div>
+      );
     }
     
-    if (status === 'processing') {
+    if (status === 'processing' || status === 'enhancing') {
+      // Data preview screen
+      if (parsedRows.length > 0 && status !== 'enhancing') {
+        return (
+          <div className="p-6">
+            <h3 className="text-lg font-semibold text-white">Data Preview ({parsedRows.length} videos)</h3>
+            <p className="text-sm text-gray-400 mb-4">Review your data below. Use the AI enhancer to automatically generate metadata.</p>
+            <div className="max-h-80 overflow-y-auto bg-gray-900/50 rounded-md border border-gray-700">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-gray-300 uppercase bg-gray-700 sticky top-0">
+                  <tr>
+                    <th scope="col" className="px-4 py-2">Filename</th>
+                    <th scope="col" className="px-4 py-2">Title</th>
+                    <th scope="col" className="px-4 py-2">Description</th>
+                    <th scope="col" className="px-4 py-2">Categories</th>
+                    <th scope="col" className="px-4 py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedRows.map((row, i) => (
+                    <tr key={i} className="border-b border-gray-700">
+                      <td className="px-4 py-2 truncate max-w-xs">{row.original.filename}</td>
+                      <td className="px-4 py-2 truncate max-w-xs">{row.enhanced.title || row.original.title}</td>
+                      <td className="px-4 py-2 truncate max-w-xs text-gray-400">{row.enhanced.description || row.original.description}</td>
+                      <td className="px-4 py-2 truncate max-w-xs text-gray-400">{(row.enhanced.categories || []).join(', ')}</td>
+                      <td className="px-4 py-2">
+                         <span className={`px-2 py-1 text-xs rounded-full ${
+                            row.status === 'enhanced' ? 'bg-green-800 text-green-300' :
+                            row.status === 'error' ? 'bg-red-800 text-red-300' :
+                            'bg-gray-600 text-gray-300'
+                         }`}>
+                           {row.status}
+                         </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      }
       return (
         <div className="text-center p-8 space-y-4">
           <Spinner className="w-12 h-12" />
-          <p className="text-lg text-gray-300">Importing videos...</p>
+          <p className="text-lg text-gray-300">{status === 'enhancing' ? 'Enhancing metadata with AI...' : 'Processing file...'}</p>
           <p className="text-2xl font-mono text-indigo-400">{progress.current} / {progress.total}</p>
           <div className="w-full bg-gray-700 rounded-full h-2.5">
             <div className="bg-indigo-600 h-2.5 rounded-full" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}></div>
@@ -233,7 +308,7 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
             <div className="space-y-1 text-center">
               <UploadIcon className="mx-auto h-12 w-12 text-gray-500" />
               <div className="flex text-sm text-gray-400">
-                <label htmlFor="file-upload" className="relative cursor-pointer bg-gray-800 rounded-md font-medium text-indigo-400 hover:text-indigo-300 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-800 focus-within:ring-indigo-500">
+                <label htmlFor="file-upload" className="relative cursor-pointer bg-gray-800 rounded-md font-medium text-indigo-400 hover:text-indigo-300">
                   <span>Select a CSV file</span>
                   <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".csv,text/csv" />
                 </label>
@@ -245,37 +320,57 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
               )}
             </div>
           </div>
+           <div className="text-xs text-gray-500 mt-2 p-3 bg-gray-900/50 rounded-md border border-gray-700">
+            <p className="font-bold text-gray-400 mb-1">CSV Column Guide:</p>
+            <p><strong>Required:</strong> <code>filename</code>, <code>title</code>.</p>
+            <p><strong>Optional:</strong> <code>description</code>, <code>keywords</code>, <code>categories</code>, <code>price</code>, <code>width</code>, <code>height</code>, <code>isFeatured</code>.</p>
+           </div>
         </div>
       </div>
     );
   };
   
   const renderFooter = () => {
-    if (status === 'idle' || status === 'error') {
+    if (status === 'idle') return null;
+    if (status === 'success') return null;
+    if (status === 'enhancing') return null;
+
+    if (status === 'processing' && parsedRows.length > 0) {
        return (
-         <div className="p-4">
-            {errorMessages.length > 0 && (
-                <div className="bg-red-900/50 text-red-300 p-3 rounded-md mb-4 text-sm space-y-1">
-                    {errorMessages.map((msg, i) => <p key={i}><strong>Error:</strong> {msg}</p>)}
-                </div>
-            )}
+         <div className="p-4 bg-gray-800/50 border-t border-gray-700 grid grid-cols-2 gap-4">
+            <button
+                onClick={handleEnhance}
+                disabled={!isGeminiAvailable}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                <SparklesIcon className="w-5 h-5" />
+                Enhance with AI
+                {!isGeminiAvailable && <span className="text-xs">(No API Key)</span>}
+            </button>
             <button
                 onClick={handleImport}
-                disabled={!csvFile || !b2UrlPrefix.trim()}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors"
             >
-                Start Import
+                Import to Collection
             </button>
          </div>
       );
     }
     
-    return null;
+    return (
+      <div className="p-4 border-t border-gray-700">
+         {errorMessages.length > 0 && (
+             <div className="bg-red-900/50 text-red-300 p-3 rounded-md mb-4 text-sm space-y-1">
+                 {errorMessages.map((msg, i) => <p key={i}><strong>Error:</strong> {msg}</p>)}
+             </div>
+         )}
+      </div>
+    );
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 animate-fade-in">
-      <div className="bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+      <div className="bg-gray-800 rounded-lg shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
         <div className="flex justify-between items-center p-4 border-b border-gray-700 flex-shrink-0">
           <h2 className="text-xl font-bold text-white">Bulk Video Importer</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
@@ -287,7 +382,7 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
             {renderContent()}
         </div>
         
-        <div className="border-t border-gray-700 flex-shrink-0">
+        <div>
            {renderFooter()}
         </div>
       </div>
