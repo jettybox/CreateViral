@@ -21,11 +21,13 @@ const formLabelClass = "block text-sm font-medium text-gray-300 mb-1";
 export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClose, onVideoUpdate, onVideoDelete, onAddToCart, isInCart, isAdmin }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableVideo, setEditableVideo] = useState<VideoFile>(video);
+  const [keywordsInput, setKeywordsInput] = useState('');
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
 
   useEffect(() => {
     setEditableVideo(video);
+    setKeywordsInput(video.keywords.join(', '));
     setIsEditing(false);
     
     setIsVideoLoading(true);
@@ -48,14 +50,17 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
   }, [video]);
 
   const handleSave = () => {
-    // Here you would typically call a function to save to your backend (e.g., updateDoc in Firestore)
-    // For this frontend-only demo, we just update the local state via the callback.
-    onVideoUpdate(editableVideo);
+    // Parse the keyword input string back into a clean array
+    const finalKeywords = keywordsInput.split(',').map(kw => kw.trim()).filter(Boolean);
+    const videoToSave = { ...editableVideo, keywords: finalKeywords };
+    
+    onVideoUpdate(videoToSave);
     setIsEditing(false);
   };
 
   const handleCancel = () => {
     setEditableVideo(video);
+    setKeywordsInput(video.keywords.join(', ')); // Reset keyword input as well
     setIsEditing(false);
   };
 
@@ -80,11 +85,6 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
             : [...currentCategories, category];
         return { ...prev, categories: newCategories };
     });
-  };
-
-  const handleKeywordsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const keywords = e.target.value.split(',').map(kw => kw.trim()).filter(Boolean);
-    setEditableVideo(prev => ({ ...prev, keywords }));
   };
 
   return (
@@ -160,7 +160,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
                   </div>
                   <div>
                     <label htmlFor="keywords" className={formLabelClass}>Keywords</label>
-                    <input type="text" id="keywords" name="keywords" value={editableVideo.keywords.join(', ')} onChange={handleKeywordsChange} className={formInputClass} />
+                    <input type="text" id="keywords" name="keywords" value={keywordsInput} onChange={(e) => setKeywordsInput(e.target.value)} className={formInputClass} />
                     <p className="text-xs text-gray-500 mt-1">Separate keywords with commas.</p>
                   </div>
                 </>
