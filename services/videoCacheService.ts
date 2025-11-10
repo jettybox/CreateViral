@@ -1,9 +1,21 @@
 const CACHE_NAME = 'video-asset-cache-v1';
 const MAX_CACHE_SIZE_BYTES = 400 * 1024 * 1024; // 400MB
 
+let protectedUrls = new Set<string>();
+
+/**
+ * Informs the cache service which video URLs should be protected from eviction.
+ * This is typically used for items in the shopping cart.
+ * @param {string[]} urls - An array of video URLs to protect.
+ */
+export function setProtectedUrls(urls: string[]) {
+  protectedUrls = new Set(urls);
+}
+
 /**
  * Manages the video cache, ensuring it doesn't exceed the defined size limit.
- * It evicts the oldest entries (FIFO) if the cache size is exceeded.
+ * It evicts the oldest entries (FIFO) if the cache size is exceeded, but respects
+ * a list of "protected" URLs that should not be evicted.
  */
 async function manageCache() {
   try {
@@ -25,8 +37,11 @@ async function manageCache() {
     // Evict oldest entries if total size exceeds the limit
     if (totalSize > MAX_CACHE_SIZE_BYTES) {
       console.log(`Cache size ${totalSize} exceeds limit ${MAX_CACHE_SIZE_BYTES}. Evicting old entries.`);
-      // Entries are roughly in insertion order.
-      for (const entry of entries) {
+      // Filter out protected URLs before considering entries for eviction.
+      // Entries are otherwise in rough insertion order.
+      const evictableEntries = entries.filter(entry => !protectedUrls.has(entry.request.url));
+
+      for (const entry of evictableEntries) {
         if (totalSize <= MAX_CACHE_SIZE_BYTES) break;
         await cache.delete(entry.request);
         totalSize -= entry.size;
