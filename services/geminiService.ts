@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
+import { CATEGORIES } from '../constants';
 
 // Lazily initialize the AI client and cache the key.
 let ai: GoogleGenAI | null = null;
@@ -80,10 +81,7 @@ export async function getEnhancedSearchTerms(query: string): Promise<string[]> {
     if (!query) return [];
 
     const aiClient = getAiClient();
-    // If the client isn't available (no API key on frontend), gracefully fall back to basic search.
-    if (!aiClient) {
-        return [query];
-    }
+    if (!aiClient) return [query];
 
     const prompt = `
         You are a semantic search assistant for a stock video website. The user has entered a search query.
@@ -109,19 +107,91 @@ export async function getEnhancedSearchTerms(query: string): Promise<string[]> {
         const parsedJson = JSON.parse(jsonString);
 
         if (Array.isArray(parsedJson) && parsedJson.every(item => typeof item === 'string')) {
-            // Ensure the original query is in the list
             if (!parsedJson.map(p => p.toLowerCase()).includes(query.toLowerCase())) {
                 return [query, ...parsedJson];
             }
             return parsedJson;
         }
         
-        // Fallback if the response is not as expected
         return [query];
 
     } catch (error) {
         console.error("Error calling Gemini API for search enhancement:", error);
-        // On error, just return the original query to allow for basic search
         return [query];
+    }
+}
+
+const metadataEnhancementSchema = {
+    type: Type.OBJECT,
+    properties: {
+        description: {
+            type: Type.STRING,
+            description: "A concise, marketable description (2-3 sentences) for the stock video."
+        },
+        categories: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: "An array of the most relevant categories selected from the provided list."
+        },
+        commercialAppeal: {
+            type: Type.INTEGER,
+            description: "An integer score from 1 to 100 representing the video's commercial appeal."
+        }
+    },
+    required: ["description", "categories", "commercialAppeal"]
+};
+
+export async function enhanceVideoMetadata(
+    videoData: { title: string; keywords: string[] }
+): Promise<{ description: string; categories: string[]; commercialAppeal: number; }> {
+    const aiClient = getAiClient();
+    if (!aiClient) {
+        throw new Error("Cannot enhance metadata, Gemini API key is not configured.");
+    }
+    
+    const prompt = `
+        You are a stock media expert specializing in metadata optimization for discoverability and sales.
+        Analyze the provided video title and keywords. Your task is to:
+        1.  Generate a concise, marketable description (2-3 sentences).
+        2.  Select up to 3 of the most relevant categories from the provided list.
+        3.  Estimate the video's commercial appeal on a scale of 1 to 100, where 100 is extremely high appeal (e.g., a versatile business-themed clip) and 1 is very niche/low appeal.
+        
+        Return the result as a JSON object matching the provided schema.
+        
+        Available Categories:
+        ${CATEGORIES.join(', ')}
+
+        Video Information:
+        Title: "${videoData.title}"
+        Keywords: ${videoData.keywords.join(', ')}
+    `;
+
+    try {
+        const response = await aiClient.models.generateContent({
+            model: model,
+            contents: { parts: [{ text: prompt }] },
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: metadataEnhancementSchema,
+            },
+        });
+
+        const jsonString = response.text.trim();
+        const parsedJson = JSON.parse(jsonString);
+
+        // Basic validation of the returned object
+        if (
+            typeof parsedJson.description === 'string' &&
+            Array.isArray(parsedJson.categories) &&
+            typeof parsedJson.commercialAppeal === 'number'
+        ) {
+            return parsedJson;
+        } else {
+            throw new Error("Gemini API returned an object with an unexpected structure.");
+        }
+
+    } catch (error) {
+        console.error("Error calling Gemini API for metadata enhancement:", error);
+        throw new Error("Failed to enhance metadata. Please check the console for details.");
     }
 }
