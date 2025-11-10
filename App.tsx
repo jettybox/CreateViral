@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { collection, onSnapshot, doc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
+import { collection, onSnapshot, doc, deleteDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
 import { db, firebaseInitError } from './firebase-config';
 import { Header } from './components/Header';
 import { CategoryFilter } from './components/CategoryFilter';
@@ -140,13 +140,33 @@ export default function App() {
     setProtectedUrls(protectedVideoUrls);
   }, [cart, videos]);
 
-  const handleUpdateVideo = useCallback((updatedVideo: VideoFile) => {
-    setVideos(currentVideos =>
-      currentVideos.map(video =>
-        video.id === updatedVideo.id ? updatedVideo : video
-      )
-    );
-    setSelectedVideo(updatedVideo); // Also update the selected video to show changes immediately
+  const handleUpdateVideo = useCallback(async (updatedVideo: VideoFile) => {
+    if (!db) {
+      alert("Database connection is not available. Cannot save changes.");
+      return;
+    }
+    try {
+      // Create a reference to the specific document in Firestore.
+      const videoRef = doc(db, "videos", updatedVideo.id);
+      // Create a plain object from the updatedVideo state, excluding the 'id'.
+      const { id, ...videoData } = updatedVideo;
+      // Update the document in Firestore with the new data.
+      await updateDoc(videoRef, videoData);
+      
+      // OPTIONAL: Update local state immediately for a responsive UI.
+      // Firestore's onSnapshot listener would eventually update this, but doing it
+      // manually provides a faster user experience.
+      setVideos(currentVideos =>
+        currentVideos.map(video =>
+          video.id === updatedVideo.id ? updatedVideo : video
+        )
+      );
+      // Also update the selected video to show changes immediately in the modal.
+      setSelectedVideo(updatedVideo);
+    } catch (error) {
+      console.error("Error updating video in Firestore: ", error);
+      alert('Failed to save changes to the database. Please check the console for more details.');
+    }
   }, []);
   
   const handleThumbnailGenerated = useCallback((videoId: string, thumbnailDataUrl: string) => {
