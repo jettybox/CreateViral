@@ -7,14 +7,16 @@ import { VideoGrid } from './components/VideoGrid';
 import { Guidance } from './components/Guidance';
 import { VideoPlayerModal } from './components/VideoPlayerModal';
 import { CartPanel } from './components/CartPanel';
+import { UploadPanel } from './components/UploadPanel';
 import { SortDropdown, SortOption } from './components/SortDropdown';
 import { Pagination } from './components/Pagination';
 import type { VideoFile } from './types';
 import { CATEGORIES } from './constants';
 import { FilmIcon, SparklesIcon, WarningIcon } from './components/Icons';
-import { getEnhancedSearchTerms } from './services/geminiService';
+import { getEnhancedSearchTerms, isApiKeyAvailable } from './services/geminiService';
 import { useAdminMode } from './hooks/useAdminMode';
 import { Spinner } from './components/Spinner';
+import { ApiKeyBanner } from './components/ApiKeyBanner';
 
 const VIDEOS_PER_PAGE = 24;
 
@@ -45,11 +47,16 @@ export default function App() {
   const [selectedVideo, setSelectedVideo] = useState<VideoFile | null>(null);
   const [isGuidanceOpen, setIsGuidanceOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
   const [cart, setCart] = useState<string[]>([]); // Array of video IDs
+  const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
   const isAdmin = useAdminMode();
 
   // Effect to initialize Firebase and fetch data.
   useEffect(() => {
+    // Check if the Gemini API key is available from any source.
+    setIsApiKeyMissing(!isApiKeyAvailable());
+
     // Check if Firebase failed to initialize at startup.
     if (firebaseInitError) {
       setConnectionError(firebaseInitError);
@@ -108,7 +115,7 @@ export default function App() {
 
   // Effect for semantic search enhancement
   useEffect(() => {
-    if (searchTerm.trim().length < 3) {
+    if (isApiKeyMissing || searchTerm.trim().length < 3) {
       setEnhancedSearchTerms(searchTerm.trim() ? [searchTerm.trim()] : []);
       setIsSearching(false);
       return;
@@ -130,7 +137,7 @@ export default function App() {
     return () => {
       clearTimeout(handler);
     };
-  }, [searchTerm]);
+  }, [searchTerm, isApiKeyMissing]);
 
   const handleUpdateVideo = useCallback((updatedVideo: VideoFile) => {
     setVideos(currentVideos =>
@@ -154,6 +161,16 @@ export default function App() {
   
   const handleClearCart = useCallback(() => {
     setCart([]);
+  }, []);
+
+  const handleSaveApiKey = useCallback((key: string) => {
+    try {
+      localStorage.setItem('gemini_api_key', key);
+      // Reload the page to ensure the geminiService is re-initialized everywhere with the new key.
+      window.location.reload();
+    } catch (e) {
+      alert("Failed to save API key. Your browser might be in private mode or has storage disabled.");
+    }
   }, []);
 
   const cartItems = useMemo(() => {
@@ -184,7 +201,7 @@ export default function App() {
         case 'newest':
           return b.createdAt - a.createdAt;
         case 'price-asc':
-          return a.price - b.price;
+          return a.price - a.price;
         case 'price-desc':
           return b.price - a.price;
         default:
@@ -246,7 +263,7 @@ service cloud.firestore {
       );
     }
 
-    if (videos.length === 0) {
+    if (videos.length === 0 && !isApiKeyMissing) {
         return (
             <div className="text-center py-20 bg-gray-800/50 rounded-lg">
                 <FilmIcon className="w-16 h-16 mx-auto text-gray-500" />
@@ -287,9 +304,12 @@ service cloud.firestore {
         onGuidanceClick={() => setIsGuidanceOpen(true)}
         cartItemCount={cart.length}
         onCartClick={() => setIsCartOpen(true)}
+        isAdmin={isAdmin}
+        onUploadClick={() => setIsUploadPanelOpen(true)}
       />
 
       <main className="container mx-auto px-4 py-8">
+        {isApiKeyMissing && isAdmin && <ApiKeyBanner onSaveKey={handleSaveApiKey} />}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
           <CategoryFilter
             categories={['All', ...CATEGORIES]}
@@ -324,6 +344,10 @@ service cloud.firestore {
           isInCart={cart.includes(selectedVideo.id)}
           isAdmin={isAdmin}
         />
+      )}
+
+      {isAdmin && isUploadPanelOpen && (
+        <UploadPanel onClose={() => setIsUploadPanelOpen(false)} />
       )}
     </div>
   );
