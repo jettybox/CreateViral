@@ -144,32 +144,6 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
                     </h3>
                     <p className="mt-2 text-gray-300 text-sm">{video.description}</p>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-indigo-400 flex items-center gap-2">
-                      <CategoryIcon className="w-5 h-5" />
-                      Categories
-                    </h3>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {video.categories.map((cat) => (
-                        <span key={cat} className="px-3 py-1 bg-gray-700 text-sm text-gray-200 rounded-full">
-                          {cat}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-indigo-400 flex items-center gap-2">
-                      <TagIcon className="w-5 h-5" />
-                      Keywords
-                    </h3>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {video.keywords.map((keyword) => (
-                        <span key={keyword} className="px-3 py-1 bg-gray-700 text-sm text-gray-200 rounded-full">
-                          {keyword}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
                 </>
               )}
             </div>
