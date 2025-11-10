@@ -1,116 +1,132 @@
-import React, { useState, useCallback } from 'react';
-import { collection, addDoc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
+import React, { useState, useEffect } from 'react';
+import { collection, writeBatch, doc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
 import { db } from '../firebase-config';
-import { useVideoProcessor } from '../hooks/useVideoProcessor';
-import { analyzeVideoContent, isApiKeyAvailable } from '../services/geminiService';
-import { VideoFile } from '../types';
-import { CATEGORIES } from '../constants';
-import { XIcon, UploadIcon, SparklesIcon, CheckIcon } from './Icons';
+import type { VideoFile } from '../types';
+import { XIcon, UploadIcon, CheckIcon, SparklesIcon } from './Icons';
 import { Spinner } from './Spinner';
 
 interface UploadPanelProps {
   onClose: () => void;
 }
 
-type Status = 'idle' | 'extracting' | 'analyzing' | 'reviewing' | 'saving' | 'error' | 'success';
-
-const formInputClass = "w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white disabled:opacity-50";
-const formLabelClass = "block text-sm font-medium text-gray-300 mb-1";
+type Status = 'idle' | 'processing' | 'error' | 'success';
 
 export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
-  const [file, setFile] = useState<File | null>(null);
-  const [videoUrl, setVideoUrl] = useState('');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [b2UrlPrefix, setB2UrlPrefix] = useState('');
   const [status, setStatus] = useState<Status>('idle');
-  const [progressMessage, setProgressMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [videoData, setVideoData] = useState<Partial<VideoFile>>({});
-  const [isKeyMissing] = useState(!isApiKeyAvailable());
-  
-  const { extractFrames } = useVideoProcessor();
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [errorMessages, setErrorMessages] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Load the saved prefix from local storage for convenience
+    const savedPrefix = localStorage.getItem('b2UrlPrefix');
+    if (savedPrefix) {
+      setB2UrlPrefix(savedPrefix);
+    }
+  }, []);
+
+  const handlePrefixChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newPrefix = e.target.value;
+    setB2UrlPrefix(newPrefix);
+    // Save to local storage so the user doesn't have to re-enter it
+    localStorage.setItem('b2UrlPrefix', newPrefix);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
+    if (selectedFile && selectedFile.type === 'text/csv') {
+      setCsvFile(selectedFile);
+      setErrorMessages([]);
+    } else {
+      setCsvFile(null);
+      setErrorMessages(['Please select a valid .csv file.']);
     }
   };
 
-  const handleAnalyze = async () => {
-    if (!file || !videoUrl) {
-      setErrorMessage('Please provide both a video file and its public Backblaze URL.');
-      setStatus('error');
-      return;
-    }
+  const parseCSV = (text: string): { header: string[], rows: Record<string, string>[] } => {
+    const lines = text.trim().replace(/\r\n/g, '\n').split('\n');
+    if (lines.length < 2) throw new Error("CSV file must have a header and at least one data row.");
     
-    // Reset state
-    setErrorMessage('');
-    setVideoData({});
-
-    try {
-      setStatus('extracting');
-      setProgressMessage('Extracting 5 key frames from the video...');
-      const { frames, width, height } = await extractFrames(file, 5);
-
-      setStatus('analyzing');
-      setProgressMessage('Frames extracted. Sending to Gemini AI for analysis...');
-      const analysisResult = await analyzeVideoContent(frames);
-
-      setVideoData({
-        ...analysisResult,
-        url: videoUrl,
-        thumbnail: frames[0], // Use the first frame as a placeholder thumbnail
-        width,
-        height,
+    // Simple CSV parser - doesn't handle commas within quoted fields.
+    const header = lines[0].split(',').map(h => h.trim());
+    const rows = lines.slice(1).map((line, index) => {
+      const values = line.split(',');
+      if (values.length !== header.length) {
+          throw new Error(`Row ${index + 2}: Found ${values.length} columns, but header has ${header.length}. Ensure there are no commas in your data fields.`);
+      }
+      const rowObject: Record<string, string> = {};
+      header.forEach((key, i) => {
+        rowObject[key] = values[i]?.trim() || '';
       });
-      setStatus('reviewing');
-    } catch (error: any) {
-      console.error('Analysis failed:', error);
-      setErrorMessage(error.message || 'An unknown error occurred during analysis.');
-      setStatus('error');
-    }
-  };
-
-  const handleSave = async () => {
-    if (!db) {
-      setErrorMessage("Database connection is not available.");
-      setStatus('error');
-      return;
-    }
-    
-    setStatus('saving');
-    setProgressMessage('Saving metadata to Firestore...');
-    try {
-      await addDoc(collection(db, "videos"), {
-        ...videoData,
-        isFeatured: false, // Default value
-        createdAt: Date.now(),
-      });
-      setStatus('success');
-    } catch (error: any) {
-        console.error('Failed to save to Firestore:', error);
-        setErrorMessage(error.message || 'Could not save the video data to the database.');
-        setStatus('error');
-    }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setVideoData(prev => ({ ...prev, [name]: name === 'price' || name === 'commercialAppeal' ? parseFloat(value) : value }));
-  };
-
-  const handleKeywordsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const keywords = e.target.value.split(',').map(kw => kw.trim()).filter(Boolean);
-    setVideoData(prev => ({ ...prev, keywords }));
-  };
-
-  const handleCategoryChange = (category: string) => {
-    setVideoData(prev => {
-        const currentCategories = prev.categories || [];
-        const newCategories = currentCategories.includes(category)
-            ? currentCategories.filter(c => c !== category)
-            : [...currentCategories, category];
-        return { ...prev, categories: newCategories };
+      return rowObject;
     });
+    return { header, rows };
+  };
+
+  const handleImport = async () => {
+    if (!csvFile || !b2UrlPrefix.trim() || !db) {
+      setErrorMessages(['Please provide a CSV file and a valid URL prefix.']);
+      return;
+    }
+
+    setStatus('processing');
+    setErrorMessages([]);
+    setProgress({ current: 0, total: 0 });
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        const { rows } = parseCSV(text);
+        setProgress({ current: 0, total: rows.length });
+
+        // Use Firestore Batched Writes for efficiency and atomicity.
+        const batch = writeBatch(db);
+        
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            
+            if (!row.filename || !row.title) {
+                console.warn(`Skipping row ${i + 2} due to missing 'filename' or 'title'.`);
+                continue;
+            }
+
+            const videoDoc: Omit<VideoFile, 'id' | 'thumbnail'> & { thumbnail?: string } = {
+              url: `${b2UrlPrefix.endsWith('/') ? b2UrlPrefix : b2UrlPrefix + '/'}${row.filename}`,
+              title: row.title,
+              description: row.description || 'No description available.',
+              keywords: row.keywords ? row.keywords.split(';').map(kw => kw.trim()).filter(Boolean) : [],
+              categories: row.categories ? row.categories.split(';').map(cat => cat.trim()).filter(Boolean) : [],
+              price: parseFloat(row.price) || 5.00,
+              commercialAppeal: parseInt(row.commercialAppeal, 10) || 75,
+              isFeatured: row.isFeatured?.toLowerCase() === 'true',
+              createdAt: Date.now() - i, // Add a slight offset to maintain order
+              width: parseInt(row.width, 10) || 1920,
+              height: parseInt(row.height, 10) || 1080,
+            };
+            
+            const newVideoRef = doc(collection(db, "videos"));
+            batch.set(newVideoRef, videoDoc);
+            setProgress(prev => ({ ...prev, current: i + 1 }));
+        }
+
+        await batch.commit();
+        setStatus('success');
+
+      } catch (error: any) {
+        console.error("Import failed:", error);
+        setErrorMessages([error.message || 'An unknown error occurred during parsing or saving. Check console.']);
+        setStatus('error');
+      }
+    };
+    
+    reader.onerror = () => {
+        setErrorMessages(['Failed to read the selected file.']);
+        setStatus('error');
+    };
+    
+    reader.readAsText(csvFile);
   };
 
   const renderContent = () => {
@@ -118,8 +134,8 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
         return (
             <div className="text-center p-8">
                 <CheckIcon className="w-16 h-16 text-green-400 mx-auto" />
-                <h3 className="mt-4 text-2xl font-bold text-white">Video Added!</h3>
-                <p className="mt-2 text-gray-300">The new video has been successfully saved to your collection and is now live.</p>
+                <h3 className="mt-4 text-2xl font-bold text-white">Import Complete!</h3>
+                <p className="mt-2 text-gray-300">{progress.total} videos have been successfully added to your collection.</p>
                 <button
                     onClick={onClose}
                     className="mt-6 w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors"
@@ -130,64 +146,16 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
         );
     }
     
-    if (status === 'extracting' || status === 'analyzing' || status === 'saving') {
+    if (status === 'processing') {
       return (
-        <div className="text-center p-8">
+        <div className="text-center p-8 space-y-4">
           <Spinner className="w-12 h-12" />
-          <p className="mt-4 text-lg text-gray-300">{progressMessage}</p>
+          <p className="text-lg text-gray-300">Importing videos...</p>
+          <p className="text-2xl font-mono text-indigo-400">{progress.current} / {progress.total}</p>
+          <div className="w-full bg-gray-700 rounded-full h-2.5">
+            <div className="bg-indigo-600 h-2.5 rounded-full" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}></div>
+          </div>
         </div>
-      );
-    }
-    
-    if (status === 'reviewing') {
-      return (
-         <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-150px)]">
-            <h3 className="text-xl font-bold text-indigo-400">Review AI-Generated Data</h3>
-            <p className="text-sm text-gray-400">The Gemini AI has analyzed your video. Review and edit the data below, then save it to your collection.</p>
-            
-            <div>
-              <label htmlFor="title" className={formLabelClass}>Title</label>
-              <input type="text" id="title" name="title" value={videoData.title || ''} onChange={handleInputChange} className={formInputClass} />
-            </div>
-            <div>
-                <label htmlFor="url" className={formLabelClass}>Video URL</label>
-                <input type="text" id="url" name="url" value={videoData.url || ''} onChange={handleInputChange} className={formInputClass} />
-            </div>
-            <div>
-                <label htmlFor="price" className={formLabelClass}>Price ($)</label>
-                <input type="number" id="price" name="price" value={videoData.price || 0} onChange={handleInputChange} className={formInputClass} min="0" step="0.01" />
-            </div>
-            <div>
-                <label htmlFor="commercialAppeal" className={formLabelClass}>Commercial Appeal (1-100)</label>
-                <input type="number" id="commercialAppeal" name="commercialAppeal" value={videoData.commercialAppeal || 50} onChange={handleInputChange} className={formInputClass} min="1" max="100" />
-            </div>
-            <div>
-              <label htmlFor="description" className={formLabelClass}>Description</label>
-              <textarea id="description" name="description" value={videoData.description || ''} onChange={handleInputChange} className={formInputClass} rows={4}></textarea>
-            </div>
-             <div>
-                <label htmlFor="categories" className={formLabelClass}>Categories</label>
-                <div id="categories" className="mt-1 space-y-2 p-3 bg-gray-700 border border-gray-600 rounded-md max-h-32 overflow-y-auto">
-                    {CATEGORIES.map(cat => (
-                        <div key={cat} className="flex items-center">
-                            <input
-                                id={`cat-upload-${cat}`}
-                                type="checkbox"
-                                checked={(videoData.categories || []).includes(cat)}
-                                onChange={() => handleCategoryChange(cat)}
-                                className="h-4 w-4 text-indigo-600 bg-gray-800 border-gray-500 rounded focus:ring-indigo-500 focus:ring-offset-gray-700"
-                            />
-                            <label htmlFor={`cat-upload-${cat}`} className="ml-3 block text-sm font-medium text-gray-300">{cat}</label>
-                        </div>
-                    ))}
-                </div>
-            </div>
-            <div>
-              <label htmlFor="keywords" className={formLabelClass}>Keywords</label>
-              <input type="text" id="keywords" name="keywords" value={(videoData.keywords || []).join(', ')} onChange={handleKeywordsChange} className={formInputClass} />
-              <p className="text-xs text-gray-500 mt-1">Separate keywords with commas.</p>
-            </div>
-         </div>
       );
     }
 
@@ -195,36 +163,35 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
       <div className="p-6 space-y-4">
         <div className="text-center">
             <SparklesIcon className="w-12 h-12 text-indigo-400 mx-auto" />
-            <h3 className="mt-2 text-xl font-bold text-white">Automate Your Workflow</h3>
-            <p className="text-sm text-gray-400">This tool simulates your backend. It uses the local file for AI analysis and the URL for the final database entry.</p>
+            <h3 className="mt-2 text-xl font-bold text-white">Bulk Import from CSV</h3>
+            <p className="text-sm text-gray-400">Upload your videos to Backblaze, then import their metadata here.</p>
         </div>
         <div>
-          <label htmlFor="videoUrl" className={formLabelClass}>1. Public Video URL</label>
+          <label htmlFor="b2UrlPrefix" className="block text-sm font-medium text-gray-300 mb-1">1. Backblaze B2 Public URL Prefix</label>
           <input
-            id="videoUrl"
+            id="b2UrlPrefix"
             type="text"
-            placeholder="Paste Backblaze 'Friendly URL' here..."
-            className={formInputClass}
-            value={videoUrl}
-            onChange={(e) => setVideoUrl(e.target.value)}
+            placeholder="e.g., https://f005.backblazeb2.com/file/your-bucket/"
+            className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
+            value={b2UrlPrefix}
+            onChange={handlePrefixChange}
           />
         </div>
         <div>
-          <label htmlFor="file-upload" className={formLabelClass}>2. Local Video File</label>
+          <label htmlFor="file-upload" className="block text-sm font-medium text-gray-300 mb-1">2. Upload Metadata CSV</label>
           <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-600 border-dashed rounded-md">
             <div className="space-y-1 text-center">
               <UploadIcon className="mx-auto h-12 w-12 text-gray-500" />
               <div className="flex text-sm text-gray-400">
                 <label htmlFor="file-upload" className="relative cursor-pointer bg-gray-800 rounded-md font-medium text-indigo-400 hover:text-indigo-300 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-gray-800 focus-within:ring-indigo-500">
-                  <span>Select a file</span>
-                  <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept="video/*" />
+                  <span>Select a CSV file</span>
+                  <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".csv,text/csv" />
                 </label>
-                <p className="pl-1">or drag and drop</p>
               </div>
-              {file ? (
-                <p className="text-xs text-green-400">{file.name}</p>
+              {csvFile ? (
+                <p className="text-xs text-green-400">{csvFile.name}</p>
               ) : (
-                <p className="text-xs text-gray-500">MP4, MOV up to 50MB</p>
+                <p className="text-xs text-gray-500">Must be a .csv file</p>
               )}
             </div>
           </div>
@@ -234,46 +201,21 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
   };
   
   const renderFooter = () => {
-    if (status === 'reviewing') {
-      return (
-         <div className="p-4 flex gap-4">
-            <button
-                onClick={() => setStatus('idle')}
-                className="w-full py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors"
-            >
-                Cancel
-            </button>
-            <button
-                onClick={handleSave}
-                className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors"
-            >
-                Save to Firestore
-            </button>
-         </div>
-      );
-    }
-    
     if (status === 'idle' || status === 'error') {
        return (
          <div className="p-4">
-            {status === 'error' && (
-                <div className="bg-red-900/50 text-red-300 p-3 rounded-md mb-4 text-sm">
-                    <strong>Error:</strong> {errorMessage}
+            {errorMessages.length > 0 && (
+                <div className="bg-red-900/50 text-red-300 p-3 rounded-md mb-4 text-sm space-y-1">
+                    {errorMessages.map((msg, i) => <p key={i}><strong>Error:</strong> {msg}</p>)}
                 </div>
             )}
             <button
-                onClick={handleAnalyze}
-                disabled={!file || !videoUrl || isKeyMissing}
+                onClick={handleImport}
+                disabled={!csvFile || !b2UrlPrefix.trim()}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-                <SparklesIcon className="w-5 h-5" />
-                Analyze Video
+                Start Import
             </button>
-            {isKeyMissing && (
-                <p className="text-xs text-yellow-400 text-center mt-2">
-                    Analysis is disabled because the Gemini API key is not configured.
-                </p>
-            )}
          </div>
       );
     }
@@ -283,17 +225,19 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 animate-fade-in">
-      <div className="bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl flex flex-col">
-        <div className="flex justify-between items-center p-4 border-b border-gray-700">
-          <h2 className="text-xl font-bold text-white">Upload & Analyze New Video</h2>
+      <div className="bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+        <div className="flex justify-between items-center p-4 border-b border-gray-700 flex-shrink-0">
+          <h2 className="text-xl font-bold text-white">Bulk Video Importer</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <XIcon className="w-6 h-6" />
           </button>
         </div>
         
-        {renderContent()}
+        <div className="overflow-y-auto">
+            {renderContent()}
+        </div>
         
-        <div className="border-t border-gray-700">
+        <div className="border-t border-gray-700 flex-shrink-0">
            {renderFooter()}
         </div>
       </div>
