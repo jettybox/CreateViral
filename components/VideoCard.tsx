@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import type { VideoFile } from '../types';
 import { PlayIcon, CartIcon, CheckIcon } from './Icons';
 import { Spinner } from './Spinner';
+import { getCachedVideoUrl } from '../services/videoCacheService';
 
 interface VideoCardProps {
   video: VideoFile;
@@ -13,9 +14,49 @@ interface VideoCardProps {
 export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(true);
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<number | null>(null);
   const hasGeneratedThumbnail = useRef(false);
+
+  // Lazy-load video when it comes into view
+  useEffect(() => {
+    let observer: IntersectionObserver;
+    let objectUrl: string | null = null;
+    const currentCardRef = cardRef.current;
+
+    if (currentCardRef) {
+      observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              // Once it's visible, fetch from cache and set the src
+              getCachedVideoUrl(video.url).then((url) => {
+                objectUrl = url;
+                setResolvedSrc(url);
+              });
+              // Stop observing once loaded
+              observer.unobserve(currentCardRef);
+            }
+          });
+        },
+        { rootMargin: '200px' } // Preload videos 200px before they enter viewport
+      );
+      observer.observe(currentCardRef);
+    }
+
+    return () => {
+      if (currentCardRef && observer) {
+        observer.unobserve(currentCardRef);
+      }
+      // Revoke the Blob URL to prevent memory leaks
+      if (objectUrl && objectUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [video.url]);
 
   const handleMouseEnter = () => {
     hoverTimeoutRef.current = window.setTimeout(() => {
@@ -98,31 +139,38 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
 
   return (
     <div 
+      ref={cardRef}
       className="bg-gray-800 rounded-lg overflow-hidden shadow-lg cursor-pointer group transition-all duration-300 transform hover:scale-105 hover:shadow-indigo-500/30 h-full flex flex-col"
       onClick={onSelect}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
       <div className="relative flex-grow bg-black aspect-video">
-        <video
-          ref={videoRef}
-          src={video.url}
-          onLoadedMetadata={handleMetadataLoaded}
-          className={`w-full h-full object-cover transition-opacity duration-300 ${isGeneratingThumbnail ? 'opacity-0' : 'opacity-100'}`}
-          loop
-          muted
-          playsInline
-          preload="metadata"
-          crossOrigin="anonymous" // Required for drawing remote video to canvas
-        />
+        {resolvedSrc ? (
+          <video
+            ref={videoRef}
+            src={resolvedSrc}
+            onLoadedMetadata={handleMetadataLoaded}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${isGeneratingThumbnail ? 'opacity-0' : 'opacity-100'}`}
+            loop
+            muted
+            playsInline
+            preload="metadata"
+            crossOrigin="anonymous" // Required for drawing remote video to canvas
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gray-900">
+             {/* Placeholder until IntersectionObserver triggers load */}
+          </div>
+        )}
         
-        {isGeneratingThumbnail && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+        {isGeneratingThumbnail && resolvedSrc && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50">
                 <Spinner className="w-8 h-8" />
             </div>
         )}
         
-        <div className={`absolute inset-0 bg-black bg-opacity-40 group-hover:bg-opacity-60 transition-all duration-300 flex items-center justify-center ${isGeneratingThumbnail ? 'opacity-0' : 'opacity-100'}`}>
+        <div className={`absolute inset-0 bg-black bg-opacity-40 group-hover:bg-opacity-60 transition-all duration-300 flex items-center justify-center ${isGeneratingThumbnail || !resolvedSrc ? 'opacity-0' : 'opacity-100'}`}>
            <PlayIcon className={`w-12 h-12 text-white/80 transform transition-all duration-300 pointer-events-none ${isHovering ? 'opacity-0 scale-75' : 'opacity-100 group-hover:scale-110'}`} />
         </div>
         <div className="absolute top-2 right-2 bg-green-600/90 text-white text-sm font-bold px-3 py-1 rounded-full shadow-lg">
