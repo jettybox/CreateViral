@@ -7,9 +7,10 @@ interface VideoGridProps {
   onVideoSelect: (video: VideoFile) => void;
   onAddToCart: (videoId: string) => void;
   cart: string[];
+  onThumbnailGenerated: (videoId: string, dataUrl: string) => void;
 }
 
-export const VideoGrid: React.FC<VideoGridProps> = ({ videos, onVideoSelect, onAddToCart, cart }) => {
+export const VideoGrid: React.FC<VideoGridProps> = ({ videos, onVideoSelect, onAddToCart, cart, onThumbnailGenerated }) => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {videos.map((video) => {
@@ -21,6 +22,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ videos, onVideoSelect, onA
               onSelect={() => onVideoSelect(video)} 
               onAddToCart={() => onAddToCart(video.id)}
               isInCart={cart.includes(video.id)}
+              onThumbnailGenerated={(dataUrl) => onThumbnailGenerated(video.id, dataUrl)}
             />
           </div>
         );
