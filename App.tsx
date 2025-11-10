@@ -18,7 +18,7 @@ import { setProtectedUrls } from './services/videoCacheService';
 import { useAdminMode } from './hooks/useAdminMode';
 import { Spinner } from './components/Spinner';
 import { ApiKeyBanner } from './components/ApiKeyBanner';
-import { TroubleshootingGuide } from './components/TroubleshootingGuide';
+import { TroubleshootingGuide } from './components/TroubleshootingGuide.tsx';
 import { DiscountBanner } from './components/DiscountBanner';
 
 const VIDEOS_PER_PAGE = 24;
