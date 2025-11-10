@@ -1,5 +1,5 @@
 import React from 'react';
-import { FilmIcon, SearchIcon, InfoIcon, CartIcon } from './Icons';
+import { FilmIcon, SearchIcon, InfoIcon, CartIcon, UploadIcon } from './Icons';
 import { Spinner } from './Spinner';
 
 interface HeaderProps {
@@ -8,9 +8,11 @@ interface HeaderProps {
   onGuidanceClick: () => void;
   cartItemCount: number;
   onCartClick: () => void;
+  isAdmin: boolean;
+  onUploadClick: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onSearch, isSearching, onGuidanceClick, cartItemCount, onCartClick }) => {
+export const Header: React.FC<HeaderProps> = ({ onSearch, isSearching, onGuidanceClick, cartItemCount, onCartClick, isAdmin, onUploadClick }) => {
   return (
     <header className="bg-gray-800/50 backdrop-blur-sm sticky top-0 z-40 shadow-lg">
       <div className="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center">
@@ -40,6 +42,15 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, isSearching, onGuidanc
               </div>
             )}
           </div>
+          {isAdmin && (
+             <button
+                onClick={onUploadClick}
+                className="flex-shrink-0 p-2 bg-indigo-600 hover:bg-indigo-500 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-label="Upload and analyze new video"
+              >
+                <UploadIcon className="w-6 h-6 text-white" />
+              </button>
+          )}
           <button
             onClick={onGuidanceClick}
             className="flex-shrink-0 p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
