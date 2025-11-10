@@ -10,9 +10,10 @@ interface VideoCardProps {
   onAddToCart: () => void;
   isInCart: boolean;
   onThumbnailGenerated: (dataUrl: string) => void;
+  isAdmin: boolean;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart, onThumbnailGenerated }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart, onThumbnailGenerated, isAdmin }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(true);
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
@@ -193,13 +194,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
       </div>
       <div className="p-4">
         <h3 className="text-lg font-semibold text-white truncate">{video.title}</h3>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {displayKeywords.slice(0, 3).map((keyword) => (
-            <span key={keyword} className="px-2 py-1 bg-gray-700 text-xs text-gray-300 rounded-full">
-              {keyword}
-            </span>
-          ))}
-        </div>
+        {isAdmin && displayKeywords.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+            {displayKeywords.slice(0, 3).map((keyword) => (
+                <span key={keyword} className="px-2 py-1 bg-gray-700 text-xs text-gray-300 rounded-full">
+                {keyword}
+                </span>
+            ))}
+            </div>
+        )}
       </div>
     </div>
   );
