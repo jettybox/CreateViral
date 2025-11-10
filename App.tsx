@@ -7,6 +7,7 @@ import { VideoGrid } from './components/VideoGrid';
 import { Guidance } from './components/Guidance';
 import { VideoPlayerModal } from './components/VideoPlayerModal';
 import { CartPanel } from './components/CartPanel';
+import { PurchasesPanel } from './components/PurchasesPanel';
 import { UploadPanel } from './components/UploadPanel';
 import { SortDropdown, SortOption } from './components/SortDropdown';
 import { Pagination } from './components/Pagination';
@@ -37,8 +38,10 @@ export default function App() {
   const [isGuidanceOpen, setIsGuidanceOpen] = useState(false);
   const [isTroubleshootingOpen, setIsTroubleshootingOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isPurchasesOpen, setIsPurchasesOpen] = useState(false);
   const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
   const [cart, setCart] = useState<string[]>([]); // Array of video IDs
+  const [purchasedVideoIds, setPurchasedVideoIds] = useState<string[]>([]);
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
   const [isDiscountBannerVisible, setIsDiscountBannerVisible] = useState(true);
   const isAdmin = useAdminMode();
@@ -78,6 +81,7 @@ export default function App() {
           price: typeof data.price === 'number' ? data.price : 0.00,
           commercialAppeal: typeof data.commercialAppeal === 'number' ? data.commercialAppeal : 50,
           isFeatured: typeof data.isFeatured === 'boolean' ? data.isFeatured : false,
+          isFree: typeof data.isFree === 'boolean' ? data.isFree : false,
           createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
           width: data.width,
           height: data.height,
@@ -98,6 +102,27 @@ export default function App() {
     // Clean up the listener when the component unmounts.
     return () => unsubscribe();
   }, []); // Empty dependency array ensures this runs only once on mount.
+
+  // Effect to load purchased videos from localStorage on startup.
+  useEffect(() => {
+    try {
+      const storedPurchases = localStorage.getItem('purchasedVideoIds');
+      if (storedPurchases) {
+        setPurchasedVideoIds(JSON.parse(storedPurchases));
+      }
+    } catch (e) {
+      console.error("Failed to load purchased videos from localStorage", e);
+    }
+  }, []);
+
+  // Effect to save purchased videos to localStorage whenever they change.
+  useEffect(() => {
+    try {
+      localStorage.setItem('purchasedVideoIds', JSON.stringify(purchasedVideoIds));
+    } catch (e) {
+      console.error("Failed to save purchased videos to localStorage", e);
+    }
+  }, [purchasedVideoIds]);
 
 
   useEffect(() => {
@@ -198,10 +223,10 @@ export default function App() {
 
   const handleAddToCart = useCallback((videoId: string) => {
     setCart(prevCart => {
-      if (prevCart.includes(videoId)) return prevCart;
+      if (prevCart.includes(videoId) || purchasedVideoIds.includes(videoId)) return prevCart;
       return [...prevCart, videoId];
     });
-  }, []);
+  }, [purchasedVideoIds]);
 
   const handleRemoveFromCart = useCallback((videoId: string) => {
     setCart(prevCart => prevCart.filter(id => id !== videoId));
@@ -210,6 +235,31 @@ export default function App() {
   const handleClearCart = useCallback(() => {
     setCart([]);
   }, []);
+
+  const handleCheckout = useCallback(() => {
+    const itemsToCheckout = cart.map(id => videos.find(v => v.id === id)).filter(Boolean) as VideoFile[];
+    const total = itemsToCheckout.reduce((acc, item) => acc + (item.price || 0), 0);
+
+    if (total > 0) {
+      alert(`Checkout for ${itemsToCheckout.length} item(s) totaling $${total.toFixed(2)}.
+      
+This is where you would integrate a payment processor like Stripe.
+
+Upon successful payment, the items would be added to the user's "My Downloads" list.`);
+      // In a real app, you would only proceed to the next step after a successful payment.
+      // For this demo, we'll add them to the purchased list to show the functionality.
+    }
+    
+    // Add cart items to the purchased list, preventing duplicates.
+    setPurchasedVideoIds(prev => [...new Set([...prev, ...cart])]);
+    // Clear the cart.
+    setCart([]);
+    // Close the cart panel.
+    setIsCartOpen(false);
+    // Automatically open the purchases panel to show the new items.
+    setIsPurchasesOpen(true);
+  }, [cart, videos]);
+
 
   const handleSaveApiKey = useCallback((key: string) => {
     try {
@@ -225,11 +275,17 @@ export default function App() {
     return cart.map(id => videos.find(video => video.id === id)).filter(Boolean) as VideoFile[];
   }, [cart, videos]);
 
+  const purchasedItems = useMemo(() => {
+    return purchasedVideoIds.map(id => videos.find(video => video.id === id)).filter(Boolean) as VideoFile[];
+  }, [purchasedVideoIds, videos]);
+
   const filteredAndSortedVideos = useMemo(() => {
     const filtered = videos
-      .filter(video =>
-        selectedCategory === 'All' || video.categories.includes(selectedCategory)
-      )
+      .filter(video => {
+        if (selectedCategory === 'All') return true;
+        if (selectedCategory === 'Free') return video.isFree;
+        return video.categories.includes(selectedCategory);
+      })
       .filter(video => {
         if (searchTerm.trim().length === 0) return true;
         
@@ -249,7 +305,7 @@ export default function App() {
         case 'newest':
           return b.createdAt - a.createdAt;
         case 'price-asc':
-          return a.price - a.price;
+          return a.price - b.price;
         case 'price-desc':
           return b.price - a.price;
         default:
@@ -331,6 +387,7 @@ service cloud.firestore {
           onVideoSelect={setSelectedVideo}
           onAddToCart={handleAddToCart}
           cart={cart}
+          purchasedVideoIds={purchasedVideoIds}
           onThumbnailGenerated={handleThumbnailGenerated}
           isAdmin={isAdmin}
         />
@@ -355,6 +412,8 @@ service cloud.firestore {
         onTroubleshootingClick={() => setIsTroubleshootingOpen(true)}
         cartItemCount={cart.length}
         onCartClick={() => setIsCartOpen(true)}
+        purchasedItemCount={purchasedItems.length}
+        onPurchasesClick={() => setIsPurchasesOpen(true)}
         isAdmin={isAdmin}
         onUploadClick={() => setIsUploadPanelOpen(true)}
       />
@@ -363,7 +422,7 @@ service cloud.firestore {
         {isApiKeyMissing && isAdmin && <ApiKeyBanner onSaveKey={handleSaveApiKey} />}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
           <CategoryFilter
-            categories={['All', ...CATEGORIES]}
+            categories={['All', 'Free', ...CATEGORIES]}
             selectedCategory={selectedCategory}
             onSelectCategory={setSelectedCategory}
           />
@@ -387,6 +446,14 @@ service cloud.firestore {
           onClose={() => setIsCartOpen(false)}
           onRemoveItem={handleRemoveFromCart}
           onClearCart={handleClearCart}
+          onCheckout={handleCheckout}
+        />
+      )}
+      
+      {isPurchasesOpen && (
+        <PurchasesPanel
+          items={purchasedItems}
+          onClose={() => setIsPurchasesOpen(false)}
         />
       )}
 
@@ -398,6 +465,7 @@ service cloud.firestore {
           onVideoDelete={handleDeleteVideo}
           onAddToCart={handleAddToCart}
           isInCart={cart.includes(selectedVideo.id)}
+          isPurchased={purchasedVideoIds.includes(selectedVideo.id)}
           isAdmin={isAdmin}
         />
       )}
