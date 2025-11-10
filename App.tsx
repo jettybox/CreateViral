@@ -332,6 +332,7 @@ service cloud.firestore {
           onAddToCart={handleAddToCart}
           cart={cart}
           onThumbnailGenerated={handleThumbnailGenerated}
+          isAdmin={isAdmin}
         />
         {totalPages > 1 && (
           <Pagination 
