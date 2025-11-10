@@ -32,6 +32,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
     }
   };
 
+  // Defensively parse keywords. This handles cases where keywords might be a single string
+  // inside an array, e.g., ["key1, key2, key3"]. It splits them into individual tags.
+  const displayKeywords = video.keywords
+    .flatMap(kw => kw.split(/[,;]/))
+    .map(k => k.trim())
+    .filter(Boolean);
+
   return (
     <div 
       className="bg-gray-800 rounded-lg overflow-hidden shadow-lg cursor-pointer group transition-all duration-300 transform hover:scale-105 hover:shadow-indigo-500/30 h-full flex flex-col"
@@ -69,7 +76,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
       <div className="p-4" onClick={onSelect}>
         <h3 className="text-lg font-semibold text-white truncate">{video.title}</h3>
         <div className="mt-2 flex flex-wrap gap-2">
-          {video.keywords.slice(0, 3).map((keyword) => (
+          {displayKeywords.slice(0, 3).map((keyword) => (
             <span key={keyword} className="px-2 py-1 bg-gray-700 text-xs text-gray-300 rounded-full">
               {keyword}
             </span>
