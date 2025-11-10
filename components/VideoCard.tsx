@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import type { VideoFile } from '../types';
 import { PlayIcon, CartIcon, CheckIcon } from './Icons';
 
@@ -10,21 +10,6 @@ interface VideoCardProps {
 }
 
 export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  const handleMouseEnter = () => {
-    videoRef.current?.play().catch(error => {
-      console.warn("Video autoplay was prevented:", error);
-    });
-  };
-
-  const handleMouseLeave = () => {
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
-    }
-  };
-
   const handleCartClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isInCart) {
@@ -42,21 +27,19 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
   return (
     <div 
       className="bg-gray-800 rounded-lg overflow-hidden shadow-lg cursor-pointer group transition-all duration-300 transform hover:scale-105 hover:shadow-indigo-500/30 h-full flex flex-col"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      onClick={onSelect}
     >
-      <div className="relative flex-grow bg-black" onClick={onSelect}>
-        <video
-          ref={videoRef}
-          src={video.url}
-          poster={video.thumbnail}
+      <div className="relative flex-grow bg-black">
+        {/* Poster image is now the primary visual before a click */}
+        <img
+          src={video.thumbnail}
+          alt={video.title}
           className="w-full h-full object-cover"
-          loop
-          muted
-          playsInline
+          loading="lazy"
         />
-        <div className="absolute inset-0 bg-black bg-opacity-20 group-hover:bg-opacity-50 transition-all duration-300 flex items-center justify-center">
-          <PlayIcon className="w-16 h-16 text-white opacity-0 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-300 pointer-events-none" />
+        <div className="absolute inset-0 bg-black bg-opacity-40 group-hover:bg-opacity-60 transition-all duration-300 flex items-center justify-center">
+          {/* Play icon is always visible and scales up on hover to encourage clicks */}
+          <PlayIcon className="w-12 h-12 text-white/80 group-hover:text-white transform group-hover:scale-110 transition-all duration-300 pointer-events-none" />
         </div>
         <div className="absolute top-2 right-2 bg-green-600/90 text-white text-sm font-bold px-3 py-1 rounded-full shadow-lg">
           ${video.price.toFixed(2)}
@@ -73,7 +56,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           {isInCart ? <CheckIcon className="w-5 h-5 text-white" /> : <CartIcon className="w-5 h-5 text-white" />}
         </button>
       </div>
-      <div className="p-4" onClick={onSelect}>
+      <div className="p-4">
         <h3 className="text-lg font-semibold text-white truncate">{video.title}</h3>
         <div className="mt-2 flex flex-wrap gap-2">
           {displayKeywords.slice(0, 3).map((keyword) => (
