@@ -292,13 +292,23 @@ Upon successful payment, the items would be added to the user's "My Downloads" l
     return cart.map(id => videos.find(video => video.id === id)).filter(Boolean) as VideoFile[];
   }, [cart, videos]);
 
-  const purchasedItems = useMemo(() => {
-    return purchasedVideoIds.map(id => videos.find(video => video.id === id)).filter(Boolean) as VideoFile[];
-  }, [purchasedVideoIds, videos]);
+  const ownedItems = useMemo(() => {
+    const freeItems = videos.filter(v => v.isFree);
+    const purchased = purchasedVideoIds
+      .map(id => videos.find(video => video.id === id))
+      .filter((v): v is VideoFile => !!v);
+    
+    const combined = [...purchased, ...freeItems];
+    const uniqueItems = Array.from(new Map(combined.map(item => [item.id, item])).values());
+    
+    // Sort for consistent order in the panel, e.g., by when they were created
+    return uniqueItems.sort((a, b) => b.createdAt - a.createdAt);
+  }, [videos, purchasedVideoIds]);
 
   const undownloadedItemCount = useMemo(() => {
-    return purchasedVideoIds.filter(id => !downloadedVideoIds.includes(id)).length;
-  }, [purchasedVideoIds, downloadedVideoIds]);
+    const ownedItemIds = ownedItems.map(item => item.id);
+    return ownedItemIds.filter(id => !downloadedVideoIds.includes(id)).length;
+  }, [ownedItems, downloadedVideoIds]);
 
   const filteredAndSortedVideos = useMemo(() => {
     const filtered = videos
@@ -473,7 +483,7 @@ service cloud.firestore {
       
       {isPurchasesOpen && (
         <PurchasesPanel
-          items={purchasedItems}
+          items={ownedItems}
           onClose={() => setIsPurchasesOpen(false)}
           downloadedVideoIds={downloadedVideoIds}
           onVideoDownloaded={handleVideoDownloaded}
