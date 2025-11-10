@@ -12,27 +12,16 @@ import { SortDropdown, SortOption } from './components/SortDropdown';
 import { Pagination } from './components/Pagination';
 import type { VideoFile } from './types';
 import { CATEGORIES } from './constants';
-import { FilmIcon, SparklesIcon, WarningIcon } from './components/Icons';
+import { FilmIcon, WarningIcon } from './components/Icons';
 import { getEnhancedSearchTerms, isApiKeyAvailable } from './services/geminiService';
+import { setProtectedUrls } from './services/videoCacheService';
 import { useAdminMode } from './hooks/useAdminMode';
 import { Spinner } from './components/Spinner';
 import { ApiKeyBanner } from './components/ApiKeyBanner';
+import { TroubleshootingGuide } from './components/TroubleshootingGuide';
+import { DiscountBanner } from './components/DiscountBanner';
 
 const VIDEOS_PER_PAGE = 24;
-
-const DiscountBanner: React.FC = () => {
-  return (
-    <div className="bg-indigo-600/80 backdrop-blur-sm text-white rounded-lg p-4 mb-8 flex items-center gap-4 shadow-lg border border-indigo-500/50">
-      <SparklesIcon className="w-8 h-8 text-yellow-300 flex-shrink-0" />
-      <div>
-        <h3 className="font-bold text-lg">Bundle & Save!</h3>
-        <p className="text-sm">
-          Get amazing discounts on bulk purchases. <strong>Buy 5 videos for $20</strong> (save $5) or <strong>10 videos for $35</strong> (save $15)!
-        </p>
-      </div>
-    </div>
-  );
-};
 
 export default function App() {
   const [videos, setVideos] = useState<VideoFile[]>([]);
@@ -46,10 +35,12 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedVideo, setSelectedVideo] = useState<VideoFile | null>(null);
   const [isGuidanceOpen, setIsGuidanceOpen] = useState(false);
+  const [isTroubleshootingOpen, setIsTroubleshootingOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
   const [cart, setCart] = useState<string[]>([]); // Array of video IDs
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
+  const [isDiscountBannerVisible, setIsDiscountBannerVisible] = useState(true);
   const isAdmin = useAdminMode();
 
   // Effect to initialize Firebase and fetch data.
@@ -138,6 +129,16 @@ export default function App() {
       clearTimeout(handler);
     };
   }, [searchTerm, isApiKeyMissing]);
+  
+  // Effect to update protected URLs for the video cache when the cart changes.
+  useEffect(() => {
+    const protectedVideoUrls = cart
+      .map(id => videos.find(v => v.id === id))
+      .filter((v): v is VideoFile => !!v)
+      .map(v => v.url);
+    
+    setProtectedUrls(protectedVideoUrls);
+  }, [cart, videos]);
 
   const handleUpdateVideo = useCallback((updatedVideo: VideoFile) => {
     setVideos(currentVideos =>
@@ -146,6 +147,16 @@ export default function App() {
       )
     );
     setSelectedVideo(updatedVideo); // Also update the selected video to show changes immediately
+  }, []);
+  
+  const handleThumbnailGenerated = useCallback((videoId: string, thumbnailDataUrl: string) => {
+    setVideos(currentVideos =>
+      currentVideos.map(video =>
+        video.id === videoId 
+        ? { ...video, generatedThumbnail: thumbnailDataUrl } 
+        : video
+      )
+    );
   }, []);
 
   const handleDeleteVideo = useCallback(async (videoId: string) => {
@@ -294,12 +305,13 @@ service cloud.firestore {
 
     return (
       <>
-        <DiscountBanner />
+        {isDiscountBannerVisible && <DiscountBanner onDismiss={() => setIsDiscountBannerVisible(false)} />}
         <VideoGrid 
           videos={paginatedVideos} 
           onVideoSelect={setSelectedVideo}
           onAddToCart={handleAddToCart}
           cart={cart}
+          onThumbnailGenerated={handleThumbnailGenerated}
         />
         {totalPages > 1 && (
           <Pagination 
@@ -319,6 +331,7 @@ service cloud.firestore {
         onSearch={setSearchTerm}
         isSearching={isSearching} 
         onGuidanceClick={() => setIsGuidanceOpen(true)}
+        onTroubleshootingClick={() => setIsTroubleshootingOpen(true)}
         cartItemCount={cart.length}
         onCartClick={() => setIsCartOpen(true)}
         isAdmin={isAdmin}
@@ -341,6 +354,10 @@ service cloud.firestore {
       
       {isGuidanceOpen && (
         <Guidance onClose={() => setIsGuidanceOpen(false)} />
+      )}
+
+      {isTroubleshootingOpen && (
+        <TroubleshootingGuide onClose={() => setIsTroubleshootingOpen(false)} />
       )}
       
       {isCartOpen && (
