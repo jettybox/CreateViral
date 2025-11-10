@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { VideoFile } from '../types';
-import { PlayIcon, CartIcon, CheckIcon } from './Icons';
+import { PlayIcon, CartIcon, CheckIcon, DownloadIcon } from './Icons';
 import { Spinner } from './Spinner';
 import { getCachedVideoUrl } from '../services/videoCacheService';
 
@@ -9,11 +9,12 @@ interface VideoCardProps {
   onSelect: () => void;
   onAddToCart: () => void;
   isInCart: boolean;
+  isPurchased: boolean;
   onThumbnailGenerated: (dataUrl: string) => void;
   isAdmin: boolean;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart, onThumbnailGenerated, isAdmin }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart, isPurchased, onThumbnailGenerated, isAdmin }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(true);
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
@@ -131,7 +132,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
 
   const handleCartClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isInCart) {
+    if (!isInCart && !isPurchased) {
       onAddToCart();
     }
   };
@@ -177,19 +178,25 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
         <div className={`absolute inset-0 bg-black bg-opacity-40 group-hover:bg-opacity-60 transition-all duration-300 flex items-center justify-center ${isGeneratingThumbnail || !resolvedSrc ? 'opacity-0' : 'opacity-100'}`}>
            <PlayIcon className={`w-12 h-12 text-white/80 transform transition-all duration-300 pointer-events-none ${isHovering ? 'opacity-0 scale-75' : 'opacity-100 group-hover:scale-110'}`} />
         </div>
-        <div className="absolute top-2 right-2 bg-green-600/90 text-white text-sm font-bold px-3 py-1 rounded-full shadow-lg">
-          ${video.price.toFixed(2)}
+         {video.isFree && (
+            <div className="absolute top-2 left-2 bg-yellow-400 text-gray-900 text-xs font-bold px-2 py-1 rounded-full shadow-lg z-10">
+                FREE
+            </div>
+        )}
+        <div className={`absolute top-2 right-2 bg-gray-900/70 text-sm font-bold px-3 py-1 rounded-full shadow-lg ${video.isFree ? 'text-white' : 'text-green-400'}`}>
+          {video.isFree ? 'Free' : `$${video.price.toFixed(2)}`}
         </div>
         <button
           onClick={handleCartClick}
+          disabled={isInCart || isPurchased}
           className={`absolute bottom-2 right-2 p-2 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100 transform group-hover:scale-110
-            ${isInCart 
+            ${isInCart || isPurchased
               ? 'bg-green-500 cursor-default' 
               : 'bg-indigo-600 hover:bg-indigo-500'
             }`}
-          aria-label={isInCart ? "Added to cart" : "Add to cart"}
+          aria-label={isPurchased ? "Owned" : isInCart ? "Added to cart" : "Add to cart"}
         >
-          {isInCart ? <CheckIcon className="w-5 h-5 text-white" /> : <CartIcon className="w-5 h-5 text-white" />}
+          {isPurchased ? <DownloadIcon className="w-5 h-5 text-white" /> : isInCart ? <CheckIcon className="w-5 h-5 text-white" /> : <CartIcon className="w-5 h-5 text-white" />}
         </button>
       </div>
       <div className="p-4">
