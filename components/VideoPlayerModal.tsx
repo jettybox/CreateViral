@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import type { VideoFile } from '../types';
 import { CATEGORIES } from '../constants';
 import { XIcon, TagIcon, InfoIcon, CategoryIcon, EditIcon, CartIcon, CheckIcon, StarIcon, TrashIcon } from './Icons';
+import { getCachedVideoUrl } from '../services/videoCacheService';
+import { Spinner } from './Spinner';
 
 interface VideoPlayerModalProps {
   video: VideoFile;
@@ -19,10 +21,30 @@ const formLabelClass = "block text-sm font-medium text-gray-300 mb-1";
 export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClose, onVideoUpdate, onVideoDelete, onAddToCart, isInCart, isAdmin }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableVideo, setEditableVideo] = useState<VideoFile>(video);
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
+  const [isVideoLoading, setIsVideoLoading] = useState(true);
 
   useEffect(() => {
     setEditableVideo(video);
     setIsEditing(false);
+    
+    setIsVideoLoading(true);
+    let objectUrl: string | null = null;
+    
+    // Fetch from cache
+    getCachedVideoUrl(video.url).then((url) => {
+      objectUrl = url;
+      setResolvedSrc(url);
+      setIsVideoLoading(false);
+    });
+
+    // Cleanup function to revoke the object URL on component unmount or video change
+    return () => {
+      if (objectUrl && objectUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+
   }, [video]);
 
   const handleSave = () => {
@@ -78,8 +100,12 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
           </button>
         </div>
         <div className="flex flex-col lg:flex-row flex-grow overflow-hidden">
-          <div className="w-full lg:w-2/3 bg-black">
-            <video src={video.url} controls autoPlay className="w-full h-full object-contain" />
+          <div className="w-full lg:w-2/3 bg-black flex items-center justify-center">
+             {isVideoLoading || !resolvedSrc ? (
+              <Spinner className="w-12 h-12" />
+            ) : (
+              <video src={resolvedSrc} controls autoPlay className="w-full h-full object-contain" />
+            )}
           </div>
           <div className="w-full lg:w-1/3 p-6 flex flex-col bg-gray-800/50 overflow-hidden">
             <div className="flex-grow overflow-y-auto pr-2 space-y-4">
