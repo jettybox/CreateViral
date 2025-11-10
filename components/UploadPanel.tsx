@@ -48,19 +48,69 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
     const lines = text.trim().replace(/\r\n/g, '\n').split('\n');
     if (lines.length < 2) throw new Error("CSV file must have a header and at least one data row.");
     
-    // Simple CSV parser - doesn't handle commas within quoted fields.
-    const header = lines[0].split(',').map(h => h.trim());
-    const rows = lines.slice(1).map((line, index) => {
-      const values = line.split(',');
-      if (values.length !== header.length) {
-          throw new Error(`Row ${index + 2}: Found ${values.length} columns, but header has ${header.length}. Ensure there are no commas in your data fields.`);
+    /**
+     * A robust CSV line parser that handles quoted fields, allowing for commas and escaped quotes within data.
+     * For example, it can correctly parse a field like: "This is a title, with a comma"
+     * @param {string} line - A single line from a CSV file.
+     * @returns {string[]} An array of strings representing the fields.
+     */
+    const parseCsvLine = (line: string): string[] => {
+      const fields: string[] = [];
+      let currentField = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+
+        if (inQuotes) {
+          if (char === '"') {
+            // Check for an escaped double quote ("")
+            if (i < line.length - 1 && line[i + 1] === '"') {
+              currentField += '"';
+              i++; // Skip the next quote
+            } else {
+              inQuotes = false; // End of quoted field
+            }
+          } else {
+            currentField += char;
+          }
+        } else {
+          if (char === ',') {
+            fields.push(currentField);
+            currentField = '';
+          } else if (char === '"' && currentField.length === 0) {
+            // A quote should only start a quoted field if it's the first character of the field
+            inQuotes = true;
+          } else {
+            currentField += char;
+          }
+        }
       }
-      const rowObject: Record<string, string> = {};
-      header.forEach((key, i) => {
-        rowObject[key] = values[i]?.trim() || '';
+      fields.push(currentField); // Add the last field
+      return fields;
+    };
+
+    const header = parseCsvLine(lines[0]).map(h => h.trim());
+    const rows = lines.slice(1)
+      .filter(line => line.trim() !== '') // Ignore empty lines
+      .map((line, index) => {
+        const values = parseCsvLine(line);
+        
+        if (values.length !== header.length) {
+          throw new Error(`Row ${index + 2}: Column count mismatch. Expected ${header.length} columns, but found ${values.length}. This can happen if a text field contains an unclosed quote mark (").`);
+        }
+
+        const rowObject: Record<string, string> = {};
+        header.forEach((key, i) => {
+          rowObject[key] = values[i] || '';
+        });
+        return rowObject;
       });
-      return rowObject;
-    });
+      
+    if (rows.length === 0) {
+        throw new Error("CSV file contains a header but no data rows.");
+    }
+
     return { header, rows };
   };
 
