@@ -223,6 +223,7 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
             continue;
         }
 
+        const isFree = original.isFree?.toLowerCase() === 'true';
         const videoUrl = `${urlPrefix}${encodeURIComponent(original.filename)}`;
         const thumbnailUrl = original.thumbnail_filename
           ? `${urlPrefix}${encodeURIComponent(original.thumbnail_filename)}`
@@ -235,7 +236,8 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
           description: enhanced.description || original.description || 'No description available.',
           keywords: enhanced.keywords || (original.keywords ? original.keywords.split(/[,;]/).map(kw => kw.trim()).filter(Boolean) : []),
           categories: enhanced.categories || (original.categories ? original.categories.split(/[,;]/).map(cat => cat.trim()).filter(Boolean) : []),
-          price: parseFloat(original.price) || 5.00,
+          price: isFree ? 0 : parseFloat(original.price) || 5.00,
+          isFree: isFree,
           commercialAppeal: enhanced.commercialAppeal || parseInt(original.commercialAppeal, 10) || 75,
           isFeatured: original.isFeatured?.toLowerCase() === 'true',
           createdAt: Date.now() - i,
@@ -388,7 +390,7 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
            <div className="text-xs text-gray-500 mt-2 p-3 bg-gray-900/50 rounded-md border border-gray-700">
             <p className="font-bold text-gray-400 mb-1">CSV Column Guide:</p>
             <p><strong>Required:</strong> <code>filename</code>, <code>title</code>.</p>
-            <p><strong>Optional:</strong> <code>description</code>, <code>keywords</code>, <code>categories</code>, <code>price</code>, <code>width</code>, <code>height</code>, <code>isFeatured</code>.</p>
+            <p><strong>Optional:</strong> <code>description</code>, <code>keywords</code>, <code>categories</code>, <code>price</code>, <code>width</code>, <code>height</code>, <code>isFeatured</code>, <code>isFree</code>.</p>
            </div>
         </div>
       </div>
