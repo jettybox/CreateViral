@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { collection, writeBatch, doc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
 import { db } from '../firebase-config';
 import type { VideoFile } from '../types';
-import { XIcon, UploadIcon, CheckIcon, SparklesIcon } from './Icons';
+import { XIcon, UploadIcon, CheckIcon, SparklesIcon, RefreshIcon } from './Icons';
 import { Spinner } from './Spinner';
 import { enhanceVideoMetadata, isApiKeyAvailable } from '../services/geminiService';
 
@@ -15,7 +15,8 @@ type Status = 'idle' | 'file-selected' | 'processing' | 'enhancing' | 'error' | 
 interface ParsedRow {
   original: Record<string, string>;
   enhanced: Partial<VideoFile>;
-  status: 'pending' | 'enhanced' | 'error'
+  status: 'pending' | 'enhanced' | 'error';
+  errorMessage?: string;
 }
 
 export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
@@ -144,17 +145,44 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
         }
 
         const enhancedData = await enhanceVideoMetadata({ title, keywords });
-        newRows[i] = { ...row, enhanced: enhancedData, status: 'enhanced' };
+        newRows[i] = { ...row, enhanced: enhancedData, status: 'enhanced', errorMessage: undefined };
 
       } catch (error: any) {
         console.error("Enhancement failed for row", i, error);
-        newRows[i] = { ...newRows[i], status: 'error' };
+        newRows[i] = { ...newRows[i], status: 'error', errorMessage: error.message || "An unknown error occurred." };
       }
       setParsedRows([...newRows]);
       setProgress(p => ({ ...p, current: i + 1 }));
     }
-    // No status change here, user can proceed to import from the preview screen
-    setStatus('processing'); // Go back to preview state
+    setStatus('processing'); 
+  };
+  
+  const handleRetryEnhance = async (index: number) => {
+    const newRows = [...parsedRows];
+    const rowToRetry = newRows[index];
+
+    // Visually mark as pending while it retries.
+    rowToRetry.status = 'pending';
+    rowToRetry.errorMessage = undefined;
+    setParsedRows([...newRows]);
+
+    try {
+      const title = rowToRetry.original.title || rowToRetry.original.filename || '';
+      const keywords = rowToRetry.original.keywords ? rowToRetry.original.keywords.split(/[,;]/).map(kw => kw.trim()).filter(Boolean) : [];
+
+      if (!title) {
+        throw new Error("Missing 'title' or 'filename' for enhancement.");
+      }
+      
+      const enhancedData = await enhanceVideoMetadata({ title, keywords });
+      newRows[index] = { ...rowToRetry, enhanced: enhancedData, status: 'enhanced', errorMessage: undefined };
+
+    } catch (error: any) {
+      console.error("Retry enhancement failed for row", index, error);
+      newRows[index] = { ...rowToRetry, status: 'error', errorMessage: error.message || "An unknown error occurred." };
+    }
+    
+    setParsedRows([...newRows]);
   };
 
   const handleImport = async () => {
@@ -231,7 +259,6 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
     }
     
     if (status === 'processing' || status === 'enhancing') {
-      // Data preview screen
       if (parsedRows.length > 0 && status !== 'enhancing') {
         return (
           <div className="p-6">
@@ -241,7 +268,6 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-gray-300 uppercase bg-gray-700 sticky top-0">
                   <tr>
-                    <th scope="col" className="px-4 py-2">Filename</th>
                     <th scope="col" className="px-4 py-2">Title</th>
                     <th scope="col" className="px-4 py-2">Description</th>
                     <th scope="col" className="px-4 py-2">Categories</th>
@@ -251,18 +277,32 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
                 <tbody>
                   {parsedRows.map((row, i) => (
                     <tr key={i} className="border-b border-gray-700">
-                      <td className="px-4 py-2 truncate max-w-xs">{row.original.filename}</td>
                       <td className="px-4 py-2 truncate max-w-xs">{row.enhanced.title || row.original.title}</td>
-                      <td className="px-4 py-2 truncate max-w-xs text-gray-400">{row.enhanced.description || row.original.description}</td>
-                      <td className="px-4 py-2 truncate max-w-xs text-gray-400">{(row.enhanced.categories || []).join(', ')}</td>
+                      <td className="px-4 py-2 truncate max-w-xs text-gray-400">{row.enhanced.description || row.original.description || 'test'}</td>
+                      <td className="px-4 py-2 truncate max-w-xs text-gray-400">{(row.enhanced.categories || (row.original.categories ? row.original.categories.split(/[,;]/).map(c=>c.trim()) : [])).join(', ')}</td>
                       <td className="px-4 py-2">
-                         <span className={`px-2 py-1 text-xs rounded-full ${
-                            row.status === 'enhanced' ? 'bg-green-800 text-green-300' :
-                            row.status === 'error' ? 'bg-red-800 text-red-300' :
-                            'bg-gray-600 text-gray-300'
-                         }`}>
-                           {row.status}
-                         </span>
+                        <div className="flex items-center gap-2">
+                          <span 
+                            className={`px-2 py-1 text-xs rounded-full ${
+                              row.status === 'enhanced' ? 'bg-green-800 text-green-300' :
+                              row.status === 'error' ? 'bg-red-800 text-red-300 cursor-help' :
+                              'bg-gray-600 text-gray-300'
+                            }`}
+                            title={row.errorMessage}
+                          >
+                            {row.status}
+                          </span>
+                          {row.status === 'error' && (
+                            <button 
+                              onClick={() => handleRetryEnhance(i)} 
+                              className="p-1 text-gray-400 hover:text-white rounded-full hover:bg-gray-600 transition-colors" 
+                              aria-label="Retry enhancement"
+                              title="Retry enhancement"
+                            >
+                              <RefreshIcon className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
