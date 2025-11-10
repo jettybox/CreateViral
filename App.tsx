@@ -296,6 +296,10 @@ Upon successful payment, the items would be added to the user's "My Downloads" l
     return purchasedVideoIds.map(id => videos.find(video => video.id === id)).filter(Boolean) as VideoFile[];
   }, [purchasedVideoIds, videos]);
 
+  const undownloadedItemCount = useMemo(() => {
+    return purchasedVideoIds.filter(id => !downloadedVideoIds.includes(id)).length;
+  }, [purchasedVideoIds, downloadedVideoIds]);
+
   const filteredAndSortedVideos = useMemo(() => {
     const filtered = videos
       .filter(video => {
@@ -429,7 +433,7 @@ service cloud.firestore {
         onTroubleshootingClick={() => setIsTroubleshootingOpen(true)}
         cartItemCount={cart.length}
         onCartClick={() => setIsCartOpen(true)}
-        purchasedItemCount={purchasedItems.length}
+        undownloadedItemCount={undownloadedItemCount}
         onPurchasesClick={() => setIsPurchasesOpen(true)}
         isAdmin={isAdmin}
         onUploadClick={() => setIsUploadPanelOpen(true)}
