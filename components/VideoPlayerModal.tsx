@@ -91,11 +91,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
     <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 animate-fade-in">
       <div className="bg-gray-800 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex justify-between items-center p-4 border-b border-gray-700">
-          <div className="flex items-center gap-3">
-            {video.isFeatured && !isEditing && <StarIcon className="w-6 h-6 text-yellow-400" />}
+          <div className="flex items-center gap-3 min-w-0">
+            {video.isFeatured && !isEditing && <StarIcon className="w-6 h-6 text-yellow-400 flex-shrink-0" />}
             <h2 className="text-xl font-bold text-white truncate">{isEditing ? 'Editing Video' : video.title}</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
+          <button onClick={onClose} className="text-gray-400 hover:text-white flex-shrink-0 ml-4">
             <XIcon className="w-6 h-6" />
           </button>
         </div>
