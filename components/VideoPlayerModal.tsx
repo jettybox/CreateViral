@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import type { VideoFile } from '../types';
 import { CATEGORIES } from '../constants';
-import { XIcon, TagIcon, InfoIcon, CategoryIcon, EditIcon, CartIcon, CheckIcon, StarIcon } from './Icons';
+import { XIcon, TagIcon, InfoIcon, CategoryIcon, EditIcon, CartIcon, CheckIcon, StarIcon, TrashIcon } from './Icons';
 
 interface VideoPlayerModalProps {
   video: VideoFile;
   onClose: () => void;
   onVideoUpdate: (video: VideoFile) => void;
+  onVideoDelete: (videoId: string) => void;
   onAddToCart: (videoId: string) => void;
   isInCart: boolean;
   isAdmin: boolean;
@@ -15,7 +16,7 @@ interface VideoPlayerModalProps {
 const formInputClass = "w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white";
 const formLabelClass = "block text-sm font-medium text-gray-300 mb-1";
 
-export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClose, onVideoUpdate, onAddToCart, isInCart, isAdmin }) => {
+export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClose, onVideoUpdate, onVideoDelete, onAddToCart, isInCart, isAdmin }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableVideo, setEditableVideo] = useState<VideoFile>(video);
 
@@ -25,6 +26,8 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
   }, [video]);
 
   const handleSave = () => {
+    // Here you would typically call a function to save to your backend (e.g., updateDoc in Firestore)
+    // For this frontend-only demo, we just update the local state via the callback.
     onVideoUpdate(editableVideo);
     setIsEditing(false);
   };
@@ -155,6 +158,21 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
                   </button>
                   <button onClick={handleCancel} className="w-full py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors">
                     Cancel
+                  </button>
+                  <div className="relative py-4">
+                      <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                          <div className="w-full border-t border-gray-600" />
+                      </div>
+                      <div className="relative flex justify-center">
+                          <span className="bg-gray-800/50 px-2 text-sm text-red-400 uppercase">Danger Zone</span>
+                      </div>
+                  </div>
+                  <button 
+                    onClick={() => onVideoDelete(video.id)}
+                    className="w-full flex items-center justify-center gap-2 py-2 bg-red-800 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors"
+                  >
+                    <TrashIcon className="w-5 h-5" />
+                    Delete Video
                   </button>
                 </>
               ) : (
