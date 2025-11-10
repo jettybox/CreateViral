@@ -173,6 +173,22 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
                     </h3>
                     <p className="mt-2 text-gray-300 text-sm">{video.description}</p>
                   </div>
+
+                  {isAdmin && (
+                    <div>
+                        <h3 className="text-lg font-semibold text-indigo-400 flex items-center gap-2 mt-4">
+                        <TagIcon className="w-5 h-5" />
+                        Keywords
+                        </h3>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                        {video.keywords.map((keyword) => (
+                            <span key={keyword} className="px-2 py-1 bg-gray-700 text-xs text-gray-300 rounded-full">
+                            {keyword}
+                            </span>
+                        ))}
+                        </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>
