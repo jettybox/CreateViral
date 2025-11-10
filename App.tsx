@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
+import { collection, onSnapshot, doc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
 import { db, firebaseInitError } from './firebase-config';
 import { Header } from './components/Header';
 import { CategoryFilter } from './components/CategoryFilter';
@@ -146,6 +146,23 @@ export default function App() {
       )
     );
     setSelectedVideo(updatedVideo); // Also update the selected video to show changes immediately
+  }, []);
+
+  const handleDeleteVideo = useCallback(async (videoId: string) => {
+    if (!db) {
+        alert("Database connection is not available.");
+        return;
+    }
+    // Simple browser confirmation to prevent accidental deletion.
+    if (window.confirm('Are you sure you want to permanently delete this video? This action cannot be undone.')) {
+        try {
+            await deleteDoc(doc(db, "videos", videoId));
+            setSelectedVideo(null); // Close the modal after successful deletion.
+        } catch (error) {
+            console.error("Error deleting video from Firestore: ", error);
+            alert('Failed to delete video. Please check the console for more details.');
+        }
+    }
   }, []);
 
   const handleAddToCart = useCallback((videoId: string) => {
@@ -340,6 +357,7 @@ service cloud.firestore {
           video={selectedVideo}
           onClose={() => setSelectedVideo(null)}
           onVideoUpdate={handleUpdateVideo}
+          onVideoDelete={handleDeleteVideo}
           onAddToCart={handleAddToCart}
           isInCart={cart.includes(selectedVideo.id)}
           isAdmin={isAdmin}
