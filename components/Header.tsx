@@ -1,18 +1,32 @@
 import React from 'react';
-import { FilmIcon, SearchIcon, InfoIcon, CartIcon, UploadIcon } from './Icons';
+import { FilmIcon, SearchIcon, InfoIcon, CartIcon, UploadIcon, QuestionMarkCircleIcon, DownloadIcon } from './Icons';
 import { Spinner } from './Spinner';
 
 interface HeaderProps {
   onSearch: (term: string) => void;
   isSearching: boolean;
   onGuidanceClick: () => void;
+  onTroubleshootingClick: () => void;
   cartItemCount: number;
   onCartClick: () => void;
+  purchasedItemCount: number;
+  onPurchasesClick: () => void;
   isAdmin: boolean;
   onUploadClick: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onSearch, isSearching, onGuidanceClick, cartItemCount, onCartClick, isAdmin, onUploadClick }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  onSearch, 
+  isSearching, 
+  onGuidanceClick, 
+  onTroubleshootingClick, 
+  cartItemCount, 
+  onCartClick,
+  purchasedItemCount,
+  onPurchasesClick,
+  isAdmin, 
+  onUploadClick 
+}) => {
   return (
     <header className="bg-gray-800/50 backdrop-blur-sm sticky top-0 z-40 shadow-lg">
       <div className="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center">
@@ -59,6 +73,13 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, isSearching, onGuidanc
             <InfoIcon className="w-6 h-6 text-gray-300" />
           </button>
            <button
+            onClick={onTroubleshootingClick}
+            className="flex-shrink-0 p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            aria-label="Show troubleshooting guide"
+          >
+            <QuestionMarkCircleIcon className="w-6 h-6 text-gray-300" />
+          </button>
+           <button
             onClick={onCartClick}
             className="relative flex-shrink-0 p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
             aria-label="Open shopping cart"
@@ -67,6 +88,18 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, isSearching, onGuidanc
             {cartItemCount > 0 && (
               <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-xs font-bold text-white">
                 {cartItemCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={onPurchasesClick}
+            className="relative flex-shrink-0 p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            aria-label="Open my downloads"
+          >
+            <DownloadIcon className="w-6 h-6 text-gray-300" />
+            {purchasedItemCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-xs font-bold text-white">
+                {purchasedItemCount}
               </span>
             )}
           </button>
