@@ -51,19 +51,20 @@ export const correctUrlForBackblaze = (url: string): string => {
     // Decode the pathname to normalize it from any existing encoding (handles %20, +, etc.)
     const decodedPathname = decodeURIComponent(urlObject.pathname);
     
-    // Re-encode each path segment individually, preserving slashes and converting spaces to '+'
+    // Re-encode each path segment individually, preserving slashes. This correctly handles spaces with %20.
     const encodedSegments = decodedPathname
       .split('/')
       .filter(Boolean) // Remove empty segments that can result from a leading slash
-      .map(segment => encodeURIComponent(segment).replace(/%20/g, '+'));
+      .map(segment => encodeURIComponent(segment));
       
     urlObject.pathname = '/' + encodedSegments.join('/');
     return urlObject.toString();
 
   } catch (error) {
-    console.error(`Failed to process URL with URL API, falling back to simple replace: ${correctedUrl}`, error);
+    console.error(`Failed to process URL with URL API, falling back to simple encode: ${correctedUrl}`, error);
     // A less robust fallback for safety, in case of an unexpected URL format.
-    return correctedUrl.replace(/%20/g, '+').replace(/ /g, '+');
+    // This fallback will now use %20 for spaces.
+    return correctedUrl.replace(/ /g, '%20');
   }
 };
 
