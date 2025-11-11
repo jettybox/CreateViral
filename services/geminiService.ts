@@ -1,21 +1,52 @@
 
+
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORIES } from '../constants';
 
-// Lazily initialize the AI client and cache the key.
+// Lazily initialize the AI client.
 let ai: GoogleGenAI | null = null;
 let cachedApiKey: string | null = null;
 
 /**
- * Retrieves the API key by checking environment variables first,
- * then falling back to localStorage. This supports both production
- * environments and interactive web IDEs with persistence.
+ * Saves the user-provided API key to localStorage and busts the cache.
+ * @param {string | null} key The API key to save, or null to remove it.
+ */
+export const setApiKey = (key: string | null) => {
+    try {
+        if (key) {
+            localStorage.setItem('geminiApiKey', key);
+        } else {
+            localStorage.removeItem('geminiApiKey');
+        }
+        // Bust the cache to ensure the new key is used.
+        cachedApiKey = null;
+        ai = null;
+    } catch (e) {
+        console.warn("Could not access localStorage to set API key.");
+    }
+};
+
+/**
+ * Retrieves the API key by checking localStorage first, then falling
+ * back to environment variables. This allows user input to override
+ * environment settings for testing.
  * @returns {string | null} The API key or null if not found.
  */
 const getApiKey = (): string | null => {
     if (cachedApiKey) return cachedApiKey;
     
-    // Fix: Per guidelines, API key must come exclusively from process.env.API_KEY
+    // Prioritize localStorage for user-provided key in the browser
+    try {
+        const storedKey = localStorage.getItem('geminiApiKey');
+        if (storedKey) {
+            cachedApiKey = storedKey;
+            return cachedApiKey;
+        }
+    } catch (e) {
+        console.warn("Could not access localStorage for API key.");
+    }
+    
+    // Fallback to environment variable if no key is in localStorage
     const envKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
     if (envKey) {
         cachedApiKey = envKey;
@@ -30,6 +61,8 @@ const getApiKey = (): string | null => {
  * @returns {boolean} True if the key is available.
  */
 export const isApiKeyAvailable = (): boolean => {
+    // This check does not use the cache to ensure it's always up-to-date
+    // with what's in localStorage or the environment.
     return getApiKey() !== null;
 };
 
