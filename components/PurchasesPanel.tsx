@@ -160,6 +160,6 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
