@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import type { VideoFile } from '../types';
 import { XIcon, TrashIcon, SparklesIcon } from './Icons';
+import { Spinner } from './Spinner';
 
 interface CartPanelProps {
   items: VideoFile[];
@@ -8,9 +9,10 @@ interface CartPanelProps {
   onRemoveItem: (videoId: string) => void;
   onClearCart: () => void;
   onCheckout: () => void;
+  isCheckingOut: boolean;
 }
 
-export const CartPanel: React.FC<CartPanelProps> = ({ items, onClose, onRemoveItem, onClearCart, onCheckout }) => {
+export const CartPanel: React.FC<CartPanelProps> = ({ items, onClose, onRemoveItem, onClearCart, onCheckout, isCheckingOut }) => {
   const { subtotal, discount, total } = useMemo(() => {
     const currentSubtotal = items.reduce((acc, item) => acc + item.price, 0);
     const itemCount = items.length;
@@ -122,13 +124,21 @@ export const CartPanel: React.FC<CartPanelProps> = ({ items, onClose, onRemoveIt
                       <p>${total.toFixed(2)}</p>
                     </div>
                   </div>
-                  <p className="mt-2 text-sm text-gray-400">Shipping and taxes calculated at checkout.</p>
+                  <p className="mt-2 text-sm text-gray-400">Taxes and final total calculated at checkout.</p>
                   <div className="mt-6">
                     <button
                       onClick={onCheckout}
-                      className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                      disabled={isCheckingOut}
+                      className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-wait"
                     >
-                      {total > 0 ? `Proceed to Checkout` : 'Get Free Downloads'}
+                      {isCheckingOut ? (
+                        <>
+                          <Spinner className="w-5 h-5 mr-3" />
+                          Processing...
+                        </>
+                      ) : (
+                        total > 0 ? `Proceed to Checkout` : 'Get Free Downloads'
+                      )}
                     </button>
                   </div>
                    <div className="mt-4 flex justify-center text-sm text-center text-gray-400">
