@@ -259,6 +259,12 @@ export default function App() {
   const handleRemoveFromCart = useCallback((videoId: string) => setCart(prev => prev.filter(id => id !== videoId)), []);
   const handleClearCart = useCallback(() => setCart([]), []);
 
+  const handleRemoveFromPurchases = useCallback((videoId: string) => {
+    if (window.confirm("Admin: Are you sure you want to remove this item from the purchases list? This is for testing and cannot be undone.")) {
+      setPurchasedVideoIds(prev => prev.filter(id => id !== videoId));
+    }
+  }, []);
+
   const handleVideoUpdate = useCallback(async (video: VideoFile) => {
     if (!db) return;
     const videoRef = doc(db, 'videos', video.id);
@@ -443,6 +449,8 @@ export default function App() {
           onClose={() => setIsPurchasesOpen(false)}
           downloadedVideoIds={downloadedVideoIds}
           onVideoDownloaded={(id) => setDownloadedVideoIds(prev => [...new Set([...prev, id])])}
+          isAdmin={isAdmin}
+          onRemoveItem={handleRemoveFromPurchases}
         />
       )}
     </div>
