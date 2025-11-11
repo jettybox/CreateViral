@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { collection, onSnapshot, doc, deleteDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
+import { getStorage, ref, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-storage.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js';
 import { db, app, firebaseInitError } from './firebase-config';
 import { Header } from './components/Header';
@@ -288,9 +289,31 @@ export default function App() {
     }
   }, []);
 
-  const handleThumbnailGenerated = useCallback((videoId: string, dataUrl: string) => {
+  const handleThumbnailGenerated = useCallback(async (videoId: string, dataUrl: string) => {
+      // Optimistically update local state for immediate UI feedback.
       setVideos(prev => prev.map(v => v.id === videoId ? { ...v, generatedThumbnail: dataUrl } : v));
-  }, []);
+
+      // Asynchronously upload the thumbnail and update Firestore.
+      // This fixes the underlying data issue for future checkouts.
+      if (!app || !db) return;
+      try {
+        const storage = getStorage(app);
+        // Use a consistent path for thumbnails, e.g., 'thumbnails/{videoId}.jpg'
+        const storageRef = ref(storage, `thumbnails/${videoId}.jpg`);
+
+        // Upload the data URL string directly. It handles Base64 decoding.
+        const snapshot = await uploadString(storageRef, dataUrl, 'data_url');
+        const downloadURL = await getDownloadURL(snapshot.ref);
+
+        // Update the 'thumbnail' field in the corresponding Firestore document.
+        const videoRef = doc(db, 'videos', videoId);
+        await updateDoc(videoRef, { thumbnail: downloadURL });
+        console.log(`Successfully generated and saved thumbnail for video ${videoId}.`);
+      } catch (error) {
+        console.error("Failed to upload and save generated thumbnail:", error);
+        // The UI is already updated, so we just log the error without alerting the user.
+      }
+  }, [app, db]);
 
   const handleCheckout = useCallback(async () => {
     setIsCheckingOut(true);
