@@ -128,11 +128,14 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
                         <ul role="list" className="-my-6 divide-y divide-gray-700">
                           {items.map((item) => {
                             const isDownloaded = downloadedVideoIds.includes(item.id);
+                            const correctedThumbnailUrl = item.thumbnail && !item.thumbnail.startsWith('data:')
+                                ? correctUrlForBackblaze(item.thumbnail)
+                                : item.thumbnail;
                             return (
                               <li key={item.id} className="py-6 flex">
                                 <div className="flex-shrink-0 w-24 h-14 border border-gray-700 rounded-md overflow-hidden bg-gray-900">
                                   <img 
-                                    src={item.generatedThumbnail || item.thumbnail} 
+                                    src={item.generatedThumbnail || correctedThumbnailUrl || ''} 
                                     alt={item.title} 
                                     className="w-full h-full object-cover" 
                                     referrerPolicy="no-referrer"
