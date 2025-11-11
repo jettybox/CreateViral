@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORIES } from '../constants';
 
@@ -14,24 +15,11 @@ let cachedApiKey: string | null = null;
 const getApiKey = (): string | null => {
     if (cachedApiKey) return cachedApiKey;
     
-    // Priority 1: Environment variables (for production/CI/CD)
+    // Fix: Per guidelines, API key must come exclusively from process.env.API_KEY
     const envKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
-    // Real Gemini keys are 39 characters long. This check is a safeguard.
-    if (envKey && envKey.trim().length > 30) {
+    if (envKey) {
         cachedApiKey = envKey;
         return cachedApiKey;
-    }
-    
-    // Priority 2: Local storage (for web IDEs and demos)
-    try {
-        const storedKey = localStorage.getItem('gemini_api_key');
-        if (storedKey && storedKey.trim().length > 30) {
-            cachedApiKey = storedKey;
-            return cachedApiKey;
-        }
-    } catch (e) {
-        // This can happen in some environments or private browsing modes.
-        console.warn("Could not access localStorage.");
     }
     
     return null;
