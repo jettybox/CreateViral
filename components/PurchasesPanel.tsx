@@ -20,54 +20,39 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
     if (downloadingId === video.id) return;
 
     setDownloadingId(video.id);
-    const correctedUrl = correctUrlForBackblaze(video.url);
 
     try {
-      // Fetch the video file as a blob using the corrected URL.
-      const response = await fetch(correctedUrl);
-      
-      if (!response.ok) {
-        throw new Error(`The video could not be fetched. Status: ${response.status} ${response.statusText}`);
-      }
-      
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      
+      // This is a more reliable, cross-platform download method that avoids
+      // issues on iOS where async operations can break the user-initiated event chain.
+      const correctedUrl = correctUrlForBackblaze(video.url);
       const link = document.createElement('a');
-      link.href = blobUrl;
+      link.href = correctedUrl;
+      
       const filename = video.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
       link.setAttribute('download', `${filename}.mp4`);
       
+      // This part must be synchronous to be trusted by iOS.
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      window.URL.revokeObjectURL(blobUrl);
+
       onVideoDownloaded(video.id);
 
-      // After download, show a helpful alert for mobile users.
+      // Show a helpful alert for mobile users.
       const userAgent = navigator.userAgent || navigator.vendor;
       // Fix: Cast window to any to access the non-standard MSStream property for legacy browser detection.
       if (/iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream) {
-        alert("Download Started!\n\nOn your iPhone/iPad, the video has been saved to the 'Files' app, inside your 'Downloads' folder.\n\nTo add it to your Photos, open the Files app, find the video, and use the Share button to 'Save Video'.");
+        alert("Your download is starting!\n\nOn iPhone/iPad, the video may open in a new tab. Use the 'Share' button (a square with an arrow) and choose 'Save Video' to save it to your Photos, or 'Save to Files'.");
       } else if (/android/i.test(userAgent)) {
         alert("Download Started!\n\nYour video is being saved to your device's 'Downloads' folder. Check your notification bar for progress.");
       }
 
     } catch (error: any) {
-      console.error("Download failed:", error);
-      // A 'TypeError' with 'Failed to fetch' is the classic browser indicator of a CORS or 'Not Found' error on cross-origin requests.
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        alert(
-          "Download Failed: A security error occurred while trying to fetch the video file.\n\n" +
-          "This is almost always caused by one of two issues:\n\n" +
-          "1. INCORRECT CORS SETTINGS: Please go to your Backblaze B2 bucket settings and ensure CORS rules are set to 'Share everything in this bucket with every origin'.\n\n" +
-          "2. INVALID VIDEO URL: The URL might be incorrect, leading to a 'File Not Found' error that the browser reports as a security issue. Please verify that the file exists at the following URL:\n" + correctedUrl
-        );
-      } else {
-        alert(`Sorry, the download could not be completed. Error: ${error.message}`);
-      }
+      console.error("Download link creation failed:", error);
+      alert(`Sorry, the download could not be started. Error: ${error.message}`);
     } finally {
+      // Give the browser a moment to initiate the download before re-enabling the button.
+      await new Promise(resolve => setTimeout(resolve, 1000));
       setDownloadingId(null);
     }
   };
