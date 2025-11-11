@@ -1,12 +1,12 @@
 import React from 'react';
-import { FilmIcon, SearchIcon, InfoIcon, CartIcon, UploadIcon, QuestionMarkCircleIcon, DownloadIcon } from './Icons';
+import { FilmIcon, SearchIcon, ExclamationCircleIcon, CartIcon, UploadIcon, QuestionMarkCircleIcon, DownloadIcon } from './Icons';
 import { Spinner } from './Spinner';
 
 interface HeaderProps {
   onSearch: (term: string) => void;
   isSearching: boolean;
-  onGuidanceClick: () => void;
-  onTroubleshootingClick: () => void;
+  onAboutClick: () => void;
+  onLicenseClick: () => void;
   cartItemCount: number;
   onCartClick: () => void;
   undownloadedItemCount: number;
@@ -18,8 +18,8 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ 
   onSearch, 
   isSearching, 
-  onGuidanceClick, 
-  onTroubleshootingClick, 
+  onAboutClick, 
+  onLicenseClick, 
   cartItemCount, 
   onCartClick,
   undownloadedItemCount,
@@ -66,16 +66,16 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
           )}
           <button
-            onClick={onGuidanceClick}
+            onClick={onLicenseClick}
             className="flex-shrink-0 p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            aria-label="Show implementation guidance"
+            aria-label="Show license information"
           >
-            <InfoIcon className="w-6 h-6 text-gray-300" />
+            <ExclamationCircleIcon className="w-6 h-6 text-gray-300" />
           </button>
            <button
-            onClick={onTroubleshootingClick}
+            onClick={onAboutClick}
             className="flex-shrink-0 p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            aria-label="Show troubleshooting guide"
+            aria-label="About this site"
           >
             <QuestionMarkCircleIcon className="w-6 h-6 text-gray-300" />
           </button>
