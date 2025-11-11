@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { VideoFile } from '../types';
-import { XIcon, DownloadIcon, CheckIcon } from './Icons';
+import { XIcon, DownloadIcon, CheckIcon, TrashIcon } from './Icons';
 import { Spinner } from './Spinner';
 import { correctUrlForBackblaze } from '../services/videoCacheService';
 
@@ -9,9 +9,11 @@ interface PurchasesPanelProps {
   onClose: () => void;
   downloadedVideoIds: string[];
   onVideoDownloaded: (videoId: string) => void;
+  isAdmin?: boolean;
+  onRemoveItem?: (videoId: string) => void;
 }
 
-export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, downloadedVideoIds, onVideoDownloaded }) => {
+export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, downloadedVideoIds, onVideoDownloaded, isAdmin, onRemoveItem }) => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const handleDownload = async (video: VideoFile) => {
@@ -105,16 +107,30 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
                                   <p className="mt-1 text-sm text-gray-400 truncate">{item.categories.join(', ')}</p>
                                 </div>
                                 <div className="flex-1 flex items-end justify-between text-sm">
-                                  {isDownloaded && (
-                                    <div className="flex items-center gap-1 text-green-400">
-                                        <CheckIcon className="w-4 h-4" />
-                                        <span className="font-medium">Downloaded</span>
-                                    </div>
-                                  )}
+                                  <div className="flex items-center gap-3">
+                                      {isDownloaded && (
+                                        <div className="flex items-center gap-1 text-green-400">
+                                            <CheckIcon className="w-4 h-4" />
+                                            <span className="font-medium">Downloaded</span>
+                                        </div>
+                                      )}
+                                      {isAdmin && onRemoveItem && (
+                                          <button
+                                              onClick={() => onRemoveItem(item.id)}
+                                              type="button"
+                                              className="font-medium text-red-500 hover:text-red-400 flex items-center gap-1 p-1 rounded-full hover:bg-gray-700 transition-colors"
+                                              title={`Admin: Delete ${item.title}`}
+                                              aria-label={`Admin: Delete ${item.title}`}
+                                          >
+                                              <TrashIcon className="w-4 h-4" />
+                                          </button>
+                                      )}
+                                  </div>
+
                                   <button 
                                     onClick={() => handleDownload(item)} 
                                     type="button" 
-                                    className="font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait ml-auto"
+                                    className="font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"
                                     disabled={downloadingId === item.id}
                                   >
                                     {downloadingId === item.id ? (
