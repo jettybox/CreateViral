@@ -42,7 +42,16 @@ export default function App() {
   const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
   const [cart, setCart] = useState<string[]>([]); // Array of video IDs
   const [purchasedVideoIds, setPurchasedVideoIds] = useState<string[]>([]);
-  const [downloadedVideoIds, setDownloadedVideoIds] = useState<string[]>([]);
+  const [downloadedVideoIds, setDownloadedVideoIds] = useState<string[]>(() => {
+    // Initialize state from localStorage to persist across sessions.
+    try {
+      const saved = localStorage.getItem('downloadedVideoIds');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Could not load downloaded videos from local storage", e);
+      return [];
+    }
+  });
   const [isDiscountBannerVisible, setIsDiscountBannerVisible] = useState(true);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isVerifyingPurchase, setIsVerifyingPurchase] = useState(false);
@@ -152,6 +161,15 @@ export default function App() {
     const cartItems = videos.filter(v => cart.includes(v.id));
     setProtectedUrls(cartItems.map(item => item.url));
   }, [cart, videos]);
+
+  // Effect to persist the list of downloaded video IDs to localStorage.
+  useEffect(() => {
+    try {
+      localStorage.setItem('downloadedVideoIds', JSON.stringify(downloadedVideoIds));
+    } catch (e) {
+      console.error("Could not save downloaded videos to local storage", e);
+    }
+  }, [downloadedVideoIds]);
 
   const handleSearch = useCallback(async (query: string) => {
     setSearchTerm(query);
