@@ -25,8 +25,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
   // A more reliable way to detect touch capabilities vs user-agent sniffing.
   const isTouchDevice = useRef(typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
 
-  // We only need to generate a thumbnail if one doesn't already exist in the state, AND we are not on a mobile/touch device.
-  const needsThumbnailGeneration = !video.generatedThumbnail && !isTouchDevice.current;
+  // We only need to generate a thumbnail if one doesn't already exist in the state.
+  // By removing the touch device check, this is now enabled for mobile.
+  const needsThumbnailGeneration = !video.generatedThumbnail;
   const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(needsThumbnailGeneration);
 
   const correctedThumbnailUrl = useMemo(() => {
@@ -114,7 +115,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
     if (needsThumbnailGeneration && videoElement && !hasGeneratedThumbnail.current) {
       hasGeneratedThumbnail.current = true;
 
+      // Set a timeout to prevent the spinner from getting stuck on mobile devices
+      // if the video fails to seek and the 'seeked' event never fires.
+      const generationTimeout = setTimeout(() => {
+        console.warn(`Thumbnail generation for ${video.id} timed out.`);
+        setIsGeneratingThumbnail(false);
+      }, 5000); // 5-second timeout
+
       const captureFrame = () => {
+        clearTimeout(generationTimeout); // Success, so clear the timeout
         if (!videoElement) return;
         try {
           const canvas = document.createElement('canvas');
@@ -138,7 +147,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
       videoElement.addEventListener('seeked', captureFrame, { once: true });
       videoElement.currentTime = 1; // Seek to the 1-second mark.
     } else {
-      // If we are on a touch device or don't need a thumbnail, just ensure the spinner is off.
+      // If we don't need a thumbnail (e.g., it's already generated), just ensure the spinner is off.
       setIsGeneratingThumbnail(false);
     }
   };
