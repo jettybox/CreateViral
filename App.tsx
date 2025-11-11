@@ -96,7 +96,6 @@ export default function App() {
           createdAt: data.createdAt || 0,
           width: data.width,
           height: data.height,
-          generatedThumbnail: data.generatedThumbnail,
         };
       });
       setVideos(videosData);
@@ -288,10 +287,6 @@ export default function App() {
     }
   }, []);
 
-  const handleThumbnailGenerated = useCallback((videoId: string, dataUrl: string) => {
-      setVideos(prev => prev.map(v => v.id === videoId ? { ...v, generatedThumbnail: dataUrl } : v));
-  }, []);
-
   const handleCheckout = useCallback(async () => {
     setIsCheckingOut(true);
     const currentCartItems = videos.filter(v => cart.includes(v.id));
@@ -403,7 +398,6 @@ export default function App() {
               onAddToCart={handleAddToCart}
               cart={cart}
               purchasedVideoIds={purchasedItems.map(p => p.id)}
-              onThumbnailGenerated={handleThumbnailGenerated}
               isAdmin={isAdmin}
             />
             <Pagination
