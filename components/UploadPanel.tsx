@@ -420,11 +420,12 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
             <button
                 onClick={handleEnhance}
                 disabled={!isGeminiAvailable}
+                title={!isGeminiAvailable ? "To enable, set the API_KEY secret in your project environment." : "Enhance metadata using Gemini AI"}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 <SparklesIcon className="w-5 h-5" />
                 Enhance with AI
-                {!isGeminiAvailable && <span className="text-xs">(No API Key)</span>}
+                {!isGeminiAvailable && <span className="text-xs">(No API Key set in environment)</span>}
             </button>
             <button
                 onClick={handleImport}
