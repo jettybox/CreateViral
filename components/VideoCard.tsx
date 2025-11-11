@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { VideoFile } from '../types';
 import { PlayIcon, CartIcon, CheckIcon, DownloadIcon } from './Icons';
 import { Spinner } from './Spinner';
-import { getCachedVideoUrl } from '../services/videoCacheService';
+import { getCachedVideoUrl, correctUrlForBackblaze } from '../services/videoCacheService';
 
 interface VideoCardProps {
   video: VideoFile;
@@ -28,6 +28,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
   // We only need to generate a thumbnail if one doesn't already exist in the state, AND we are not on a mobile/touch device.
   const needsThumbnailGeneration = !video.generatedThumbnail && !isTouchDevice.current;
   const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(needsThumbnailGeneration);
+
+  const correctedThumbnailUrl = useMemo(() => {
+    // The generatedThumbnail is a data URL and doesn't need correction.
+    // Only correct the thumbnail from storage if it's a real URL.
+    if (video.thumbnail && !video.thumbnail.startsWith('data:')) {
+      return correctUrlForBackblaze(video.thumbnail);
+    }
+    return video.thumbnail;
+  }, [video.thumbnail]);
 
   // Lazy-load video when it comes into view
   useEffect(() => {
@@ -157,11 +166,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
       <div className="relative flex-grow bg-black aspect-video">
         {/* Layer 1: Thumbnail Image (Always present, used as poster) */}
         <img
-          src={video.generatedThumbnail || video.thumbnail}
+          src={video.generatedThumbnail || correctedThumbnailUrl || ''}
           alt={video.title}
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${isHovering ? 'opacity-0' : 'opacity-100'}`}
           referrerPolicy="no-referrer"
           loading="lazy"
+          onError={(e) => {
+            console.warn(`Failed to load thumbnail for video ${video.id}:`, correctedThumbnailUrl);
+            (e.target as HTMLImageElement).style.display = 'none'; // Hide broken image icon
+          }}
         />
 
         {/* Layer 2: Video Player (Hidden by default, revealed on hover on desktop) */}
