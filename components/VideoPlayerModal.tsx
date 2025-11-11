@@ -109,7 +109,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
              {isVideoLoading || !resolvedSrc ? (
               <Spinner className="w-12 h-12" />
             ) : (
-              <video src={resolvedSrc} controls autoPlay className="w-full h-full object-contain" controlsList="nodownload" />
+              <video src={resolvedSrc} controls playsInline className="w-full h-full object-contain" controlsList="nodownload" />
             )}
           </div>
           <div className="w-full lg:w-1/3 p-6 flex flex-col bg-gray-800/50 overflow-hidden">
