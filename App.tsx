@@ -5,7 +5,6 @@ import { db, app, firebaseInitError } from './firebase-config';
 import { Header } from './components/Header';
 import { CategoryFilter } from './components/CategoryFilter';
 import { VideoGrid } from './components/VideoGrid';
-import { Guidance } from './components/Guidance';
 import { VideoPlayerModal } from './components/VideoPlayerModal';
 import { CartPanel } from './components/CartPanel';
 import { PurchasesPanel } from './components/PurchasesPanel';
@@ -15,12 +14,13 @@ import { Pagination } from './components/Pagination';
 import type { VideoFile } from './types';
 import { CATEGORIES } from './constants';
 import { FilmIcon, WarningIcon } from './components/Icons';
-import { getEnhancedSearchTerms, isApiKeyAvailable } from './services/geminiService';
+import { getEnhancedSearchTerms } from './services/geminiService';
 import { setProtectedUrls } from './services/videoCacheService';
 import { useAdminMode } from './hooks/useAdminMode';
 import { Spinner } from './components/Spinner';
-import { Troubleshooting } from './components/Troubleshooting';
 import { DiscountBanner } from './components/DiscountBanner';
+import { AboutModal } from './components/AboutModal';
+import { LicenseModal } from './components/LicenseModal';
 
 const VIDEOS_PER_PAGE = 24;
 
@@ -35,8 +35,8 @@ export default function App() {
   const [sortBy, setSortBy] = useState<SortOption>('featured');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedVideo, setSelectedVideo] = useState<VideoFile | null>(null);
-  const [isGuidanceOpen, setIsGuidanceOpen] = useState(false);
-  const [isTroubleshootingOpen, setIsTroubleshootingOpen] = useState(false);
+  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isPurchasesOpen, setIsPurchasesOpen] = useState(false);
   const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
@@ -277,10 +277,10 @@ export default function App() {
       // Store session details to verify after redirect.
       localStorage.setItem('pendingCheckoutSession', JSON.stringify({ sessionId, cart }));
       
-      // Open Stripe Checkout in a new tab.
-      window.open(checkoutUrl, '_blank');
+      // Redirect to Stripe. This is more reliable than window.open() in Safari.
+      window.location.href = checkoutUrl;
       
-      // Close the cart, but DO NOT assume the purchase is complete yet.
+      // The code below will not be reached after redirection.
       // Verification will happen when the user is redirected back.
       setIsCartOpen(false);
 
@@ -304,8 +304,8 @@ export default function App() {
       <Header
         onSearch={handleSearch}
         isSearching={isSearching}
-        onGuidanceClick={() => setIsGuidanceOpen(true)}
-        onTroubleshootingClick={() => setIsTroubleshootingOpen(true)}
+        onLicenseClick={() => setIsLicenseModalOpen(true)}
+        onAboutClick={() => setIsAboutModalOpen(true)}
         cartItemCount={cart.length}
         onCartClick={() => setIsCartOpen(true)}
         undownloadedItemCount={purchasedItems.filter(p => !downloadedVideoIds.includes(p.id)).length}
@@ -364,8 +364,8 @@ export default function App() {
         )}
       </main>
 
-      {isGuidanceOpen && <Guidance onClose={() => setIsGuidanceOpen(false)} />}
-      {isTroubleshootingOpen && <Troubleshooting onClose={() => setIsTroubleshootingOpen(false)} />}
+      {isAboutModalOpen && <AboutModal onClose={() => setIsAboutModalOpen(false)} />}
+      {isLicenseModalOpen && <LicenseModal onClose={() => setIsLicenseModalOpen(false)} />}
       {isUploadPanelOpen && <UploadPanel onClose={() => setIsUploadPanelOpen(false)} />}
 
       {selectedVideo && (
