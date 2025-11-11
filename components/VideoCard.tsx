@@ -93,7 +93,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
     };
   }, []);
 
-  const handleMetadataLoaded = () => {
+  const handleDataLoaded = () => {
     const videoElement = videoRef.current;
     if (videoElement && !hasGeneratedThumbnail.current) {
       hasGeneratedThumbnail.current = true; // Prevents this from running multiple times
@@ -115,8 +115,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           console.error("Error generating thumbnail from video:", error);
         } finally {
           setIsGeneratingThumbnail(false);
-          // Clean up the event listener after it has run once.
-          videoElement.removeEventListener('seeked', captureFrame);
+          // The event listener is registered with { once: true }, so it removes itself automatically.
         }
       };
       
@@ -124,7 +123,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
       // Seek to the 1-second mark to capture a representative frame.
       videoElement.currentTime = 1;
     } else if (hasGeneratedThumbnail.current) {
-      // If metadata loads again, ensure the spinner is hidden.
+      // If data loads again (e.g., on loop), ensure the spinner is hidden.
       setIsGeneratingThumbnail(false);
     }
   };
@@ -155,7 +154,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           <video
             ref={videoRef}
             src={resolvedSrc}
-            onLoadedMetadata={handleMetadataLoaded}
+            onLoadedData={handleDataLoaded}
             className={`w-full h-full object-cover transition-opacity duration-300 ${isGeneratingThumbnail ? 'opacity-0' : 'opacity-100'}`}
             loop
             muted
