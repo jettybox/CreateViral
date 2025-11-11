@@ -45,6 +45,15 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
       window.URL.revokeObjectURL(blobUrl);
       onVideoDownloaded(video.id);
 
+      // After download, show a helpful alert for mobile users.
+      const userAgent = navigator.userAgent || navigator.vendor;
+      // Fix: Cast window to any to access the non-standard MSStream property for legacy browser detection.
+      if (/iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream) {
+        alert("Download Started!\n\nOn your iPhone/iPad, the video has been saved to the 'Files' app, inside your 'Downloads' folder.\n\nTo add it to your Photos, open the Files app, find the video, and use the Share button to 'Save Video'.");
+      } else if (/android/i.test(userAgent)) {
+        alert("Download Started!\n\nYour video is being saved to your device's 'Downloads' folder. Check your notification bar for progress.");
+      }
+
     } catch (error: any) {
       console.error("Download failed:", error);
       // A 'TypeError' with 'Failed to fetch' is the classic browser indicator of a CORS or 'Not Found' error on cross-origin requests.
