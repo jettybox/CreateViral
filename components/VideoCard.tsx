@@ -22,9 +22,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
   const cardRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<number | null>(null);
   const hasGeneratedThumbnail = useRef(false);
+  const isMobile = useRef(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
   
-  // We only need to generate a thumbnail if one doesn't already exist in the state.
-  const needsThumbnailGeneration = !video.generatedThumbnail;
+  // We only need to generate a thumbnail if one doesn't already exist in the state, AND we are not on a mobile device.
+  const needsThumbnailGeneration = !video.generatedThumbnail && !isMobile.current;
   const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(needsThumbnailGeneration);
 
   // Lazy-load video when it comes into view
@@ -99,21 +100,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
   const handleDataLoaded = () => {
     const videoElement = videoRef.current;
     
-    // Only attempt generation if we determined at mount that we need to and haven't tried already.
+    // The key fix: Only attempt generation on non-mobile devices if needed.
     if (needsThumbnailGeneration && videoElement && !hasGeneratedThumbnail.current) {
       hasGeneratedThumbnail.current = true;
 
-      // Failsafe: Mobile browsers can be strict and may never fire the 'seeked' event.
-      // This timeout ensures the spinner doesn't get stuck forever.
-      const generationTimeout = setTimeout(() => {
-        console.warn(`Thumbnail generation for video ${video.id} timed out.`);
-        setIsGeneratingThumbnail(false);
-        // Clean up the event listener to prevent it from firing later.
-        videoElement.removeEventListener('seeked', captureFrame);
-      }, 3000); // 3-second timeout.
-
       const captureFrame = () => {
-        clearTimeout(generationTimeout); // Success! Clear the failsafe timeout.
         if (!videoElement) return;
         try {
           const canvas = document.createElement('canvas');
@@ -136,7 +127,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
       videoElement.addEventListener('seeked', captureFrame, { once: true });
       videoElement.currentTime = 1; // Seek to the 1-second mark.
     } else {
-      // If we don't need to generate a thumbnail, just ensure the spinner is off.
+      // If we are on mobile or don't need a thumbnail, just ensure the spinner is off.
       setIsGeneratingThumbnail(false);
     }
   };
