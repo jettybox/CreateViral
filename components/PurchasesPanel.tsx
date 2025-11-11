@@ -53,8 +53,9 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         alert(
           "Download Failed: A security error occurred while trying to fetch the video file.\n\n" +
-          "This is almost always caused by missing or incorrect CORS (Cross-Origin Resource Sharing) settings on your video storage bucket (e.g., Backblaze B2).\n\n" +
-          "ACTION REQUIRED: Please go to your bucket settings and ensure CORS rules are set to 'Share everything in this bucket with every origin'. This allows the website to access the video for download."
+          "This is almost always caused by one of two issues:\n\n" +
+          "1. INCORRECT CORS SETTINGS: Please go to your Backblaze B2 bucket settings and ensure CORS rules are set to 'Share everything in this bucket with every origin'.\n\n" +
+          "2. INVALID VIDEO URL: The URL might be incorrect, leading to a 'File Not Found' error that the browser reports as a security issue. Please verify that the file exists at the following URL:\n" + video.url
         );
       } else {
         alert(`Sorry, the download could not be completed. Error: ${error.message}`);
