@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { VideoFile } from '../types';
 import { XIcon, DownloadIcon, CheckIcon } from './Icons';
 import { Spinner } from './Spinner';
+import { correctUrlForBackblaze } from '../services/videoCacheService';
 
 interface PurchasesPanelProps {
   items: VideoFile[];
@@ -17,22 +18,19 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
     if (downloadingId === video.id) return;
 
     setDownloadingId(video.id);
+    const correctedUrl = correctUrlForBackblaze(video.url);
+
     try {
-      // Fetch the video file as a blob. This is the most reliable method for forcing a download,
-      // as it avoids cross-origin navigation issues. It requires correct CORS settings on the storage provider.
-      const response = await fetch(video.url);
+      // Fetch the video file as a blob using the corrected URL.
+      const response = await fetch(correctedUrl);
       
       if (!response.ok) {
         throw new Error(`The video could not be fetched. Status: ${response.status} ${response.statusText}`);
       }
       
       const blob = await response.blob();
-      
-      // Create a temporary URL from the blob data. This URL is local to the user's browser.
       const blobUrl = window.URL.createObjectURL(blob);
       
-      // Create a temporary anchor element to trigger the browser's download functionality.
-      // Because the href is a same-origin blob URL, the 'download' attribute will be respected by the browser.
       const link = document.createElement('a');
       link.href = blobUrl;
       const filename = video.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
@@ -42,20 +40,18 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
       link.click();
       document.body.removeChild(link);
       
-      // Clean up the temporary blob URL to release memory.
       window.URL.revokeObjectURL(blobUrl);
-
       onVideoDownloaded(video.id);
 
     } catch (error: any) {
       console.error("Download failed:", error);
-      // A 'TypeError' with 'Failed to fetch' is the classic browser indicator of a CORS security error.
+      // A 'TypeError' with 'Failed to fetch' is the classic browser indicator of a CORS or 'Not Found' error on cross-origin requests.
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         alert(
           "Download Failed: A security error occurred while trying to fetch the video file.\n\n" +
           "This is almost always caused by one of two issues:\n\n" +
           "1. INCORRECT CORS SETTINGS: Please go to your Backblaze B2 bucket settings and ensure CORS rules are set to 'Share everything in this bucket with every origin'.\n\n" +
-          "2. INVALID VIDEO URL: The URL might be incorrect, leading to a 'File Not Found' error that the browser reports as a security issue. Please verify that the file exists at the following URL:\n" + video.url
+          "2. INVALID VIDEO URL: The URL might be incorrect, leading to a 'File Not Found' error that the browser reports as a security issue. Please verify that the file exists at the following URL:\n" + correctedUrl
         );
       } else {
         alert(`Sorry, the download could not be completed. Error: ${error.message}`);
