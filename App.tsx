@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { collection, onSnapshot, doc, deleteDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
-import { db, firebaseInitError } from './firebase-config';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js';
+import { db, app, firebaseInitError } from './firebase-config';
 import { Header } from './components/Header';
 import { CategoryFilter } from './components/CategoryFilter';
 import { VideoGrid } from './components/VideoGrid';
@@ -18,7 +19,6 @@ import { getEnhancedSearchTerms, isApiKeyAvailable } from './services/geminiServ
 import { setProtectedUrls } from './services/videoCacheService';
 import { useAdminMode } from './hooks/useAdminMode';
 import { Spinner } from './components/Spinner';
-import { ApiKeyBanner } from './components/ApiKeyBanner';
 import { Troubleshooting } from './components/Troubleshooting';
 import { DiscountBanner } from './components/DiscountBanner';
 
@@ -43,306 +43,162 @@ export default function App() {
   const [cart, setCart] = useState<string[]>([]); // Array of video IDs
   const [purchasedVideoIds, setPurchasedVideoIds] = useState<string[]>([]);
   const [downloadedVideoIds, setDownloadedVideoIds] = useState<string[]>([]);
-  const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
   const [isDiscountBannerVisible, setIsDiscountBannerVisible] = useState(true);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isVerifyingPurchase, setIsVerifyingPurchase] = useState(false);
   const isAdmin = useAdminMode();
 
   // Effect to initialize Firebase and fetch data.
   useEffect(() => {
-    // Check if the Gemini API key is available from any source.
-    setIsApiKeyMissing(!isApiKeyAvailable());
-
-    // Check if Firebase failed to initialize at startup.
     if (firebaseInitError) {
       setConnectionError(firebaseInitError);
       setIsLoading(false);
       return;
     }
-
-    // If db is not available (should be caught by the error above, but for safety).
     if (!db) {
         setConnectionError("A fatal error occurred: The database instance is not available.");
         setIsLoading(false);
         return;
     }
-    
-    // Set up a real-time listener to the 'videos' collection in Firestore.
     const unsubscribe = onSnapshot(collection(db, "videos"), (snapshot) => {
-      // Sanitize data from Firestore to prevent runtime errors from malformed records.
-      const videosData = snapshot.docs.map(doc => {
+      const videosData: VideoFile[] = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
           id: doc.id,
           url: data.url || '',
           thumbnail: data.thumbnail || '',
-          title: data.title || 'Untitled Video',
-          description: data.description || 'No description available.',
+          title: data.title || 'Untitled',
+          description: data.description || '',
           keywords: Array.isArray(data.keywords) ? data.keywords : [],
           categories: Array.isArray(data.categories) ? data.categories : [],
-          price: typeof data.price === 'number' ? data.price : 0.00,
-          commercialAppeal: typeof data.commercialAppeal === 'number' ? data.commercialAppeal : 50,
-          isFeatured: typeof data.isFeatured === 'boolean' ? data.isFeatured : false,
-          isFree: typeof data.isFree === 'boolean' ? data.isFree : false,
-          createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
+          price: typeof data.price === 'number' ? data.price : 0,
+          commercialAppeal: data.commercialAppeal || 0,
+          isFeatured: data.isFeatured || false,
+          isFree: data.isFree || false,
+          createdAt: data.createdAt || 0,
           width: data.width,
           height: data.height,
-        } as VideoFile;
+          generatedThumbnail: data.generatedThumbnail,
+        };
       });
       setVideos(videosData);
       setIsLoading(false);
-    }, (error: any) => {
-      console.error("Error fetching videos from Firestore: ", error);
-      let errorMessage = "Could not connect to the database. Please check the browser console for details and ensure your `firebase-config.ts` file is correct.";
-      if (error.code === 'permission-denied') {
-        errorMessage = "Permission Denied: Could not read from the 'videos' collection. Please check your Firestore Security Rules in the Firebase Console.";
-      }
-      setConnectionError(errorMessage);
-      setIsLoading(false); // Stop loading even if there's an error
+      setConnectionError(null);
+    }, (error) => {
+      console.error("Firebase connection error:", error);
+      setConnectionError("Failed to connect to the video database. Please check your internet connection and Firebase configuration.");
+      setIsLoading(false);
     });
-
-    // Clean up the listener when the component unmounts.
     return () => unsubscribe();
-  }, []); // Empty dependency array ensures this runs only once on mount.
-
-  // Effect to load purchased videos from localStorage on startup.
-  useEffect(() => {
-    try {
-      const storedPurchases = localStorage.getItem('purchasedVideoIds');
-      if (storedPurchases) {
-        setPurchasedVideoIds(JSON.parse(storedPurchases));
-      }
-      const storedDownloads = localStorage.getItem('downloadedVideoIds');
-      if (storedDownloads) {
-        setDownloadedVideoIds(JSON.parse(storedDownloads));
-      }
-    } catch (e) {
-      console.error("Failed to load user data from localStorage", e);
-    }
   }, []);
 
-  // Effect to save purchased videos to localStorage whenever they change.
+  // Effect to handle verification after Stripe redirect.
   useEffect(() => {
-    try {
-      localStorage.setItem('purchasedVideoIds', JSON.stringify(purchasedVideoIds));
-    } catch (e) {
-      console.error("Failed to save purchased videos to localStorage", e);
-    }
-  }, [purchasedVideoIds]);
+    const verifyPurchase = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const checkoutStatus = urlParams.get('checkout');
+      const sessionIdFromUrl = urlParams.get('session_id');
 
-  // Effect to save downloaded video IDs to localStorage whenever they change.
-  useEffect(() => {
-    try {
-      localStorage.setItem('downloadedVideoIds', JSON.stringify(downloadedVideoIds));
-    } catch (e) {
-      console.error("Failed to save downloaded videos to localStorage", e);
-    }
-  }, [downloadedVideoIds]);
+      if (checkoutStatus === 'success' && sessionIdFromUrl) {
+        setIsVerifyingPurchase(true);
+        const pendingSessionRaw = localStorage.getItem('pendingCheckoutSession');
+        
+        // Clean up URL and local storage regardless of outcome
+        window.history.replaceState({}, document.title, window.location.pathname);
+        localStorage.removeItem('pendingCheckoutSession');
 
+        if (pendingSessionRaw) {
+          const pendingSession = JSON.parse(pendingSessionRaw);
+          if (pendingSession.sessionId === sessionIdFromUrl) {
+            try {
+              if (!app) throw new Error("Firebase app is not initialized.");
+              const functions = getFunctions(app);
+              const verifyCheckoutSession = httpsCallable(functions, 'verifyCheckoutSession');
+              
+              const { data } = await verifyCheckoutSession({ sessionId: sessionIdFromUrl });
+              const { purchasedVideoIds: verifiedIds } = data as { purchasedVideoIds: string[] };
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, selectedCategory, sortBy]);
+              if (verifiedIds && verifiedIds.length > 0) {
+                 setPurchasedVideoIds(prev => [...new Set([...prev, ...verifiedIds])]);
+                 setCart(prev => prev.filter(id => !verifiedIds.includes(id)));
+                 setIsPurchasesOpen(true);
+                 alert('Thank you for your purchase! Your downloads are now available.');
+              } else {
+                 throw new Error("Verification succeeded, but no purchased items were returned.");
+              }
 
-  // Effect for semantic search enhancement
-  useEffect(() => {
-    if (isApiKeyMissing || searchTerm.trim().length < 3) {
-      setEnhancedSearchTerms(searchTerm.trim() ? [searchTerm.trim()] : []);
-      setIsSearching(false);
-      return;
-    }
-
-    setIsSearching(true);
-    const handler = setTimeout(async () => {
-      try {
-        const terms = await getEnhancedSearchTerms(searchTerm);
-        setEnhancedSearchTerms(terms);
-      } catch (error) {
-        console.error("Failed to get enhanced search terms, falling back to basic search.", error);
-        setEnhancedSearchTerms([searchTerm]); // Fallback to exact match
-      } finally {
-        setIsSearching(false);
-      }
-    }, 500); // 500ms debounce
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [searchTerm, isApiKeyMissing]);
-  
-  // Effect to update protected URLs for the video cache when the cart changes.
-  useEffect(() => {
-    const protectedVideoUrls = cart
-      .map(id => videos.find(v => v.id === id))
-      .filter((v): v is VideoFile => !!v)
-      .map(v => v.url);
-    
-    setProtectedUrls(protectedVideoUrls);
-  }, [cart, videos]);
-
-  const handleUpdateVideo = useCallback(async (updatedVideo: VideoFile) => {
-    if (!db) {
-      alert("Database connection is not available. Cannot save changes.");
-      return;
-    }
-    try {
-      // Create a reference to the specific document in Firestore.
-      const videoRef = doc(db, "videos", updatedVideo.id);
-      // Create a plain object from the updatedVideo state, excluding the 'id'.
-      const { id, ...videoData } = updatedVideo;
-      // Update the document in Firestore with the new data.
-      await updateDoc(videoRef, videoData);
-      
-      // OPTIONAL: Update local state immediately for a responsive UI.
-      // Firestore's onSnapshot listener would eventually update this, but doing it
-      // manually provides a faster user experience.
-      setVideos(currentVideos =>
-        currentVideos.map(video =>
-          video.id === updatedVideo.id ? updatedVideo : video
-        )
-      );
-      // Also update the selected video to show changes immediately in the modal.
-      setSelectedVideo(updatedVideo);
-    } catch (error) {
-      console.error("Error updating video in Firestore: ", error);
-      alert('Failed to save changes to the database. Please check the console for more details.');
-    }
-  }, []);
-  
-  const handleThumbnailGenerated = useCallback((videoId: string, thumbnailDataUrl: string) => {
-    setVideos(currentVideos =>
-      currentVideos.map(video =>
-        video.id === videoId 
-        ? { ...video, generatedThumbnail: thumbnailDataUrl } 
-        : video
-      )
-    );
-  }, []);
-
-  const handleDeleteVideo = useCallback(async (videoId: string) => {
-    if (!db) {
-        alert("Database connection is not available.");
-        return;
-    }
-    // Simple browser confirmation to prevent accidental deletion.
-    if (window.confirm('Are you sure you want to permanently delete this video? This action cannot be undone.')) {
-        try {
-            await deleteDoc(doc(db, "videos", videoId));
-            setSelectedVideo(null); // Close the modal after successful deletion.
-        } catch (error) {
-            console.error("Error deleting video from Firestore: ", error);
-            alert('Failed to delete video. Please check the console for more details.');
+            } catch (error: any) {
+              console.error("Purchase verification failed:", error);
+              alert(`There was a problem verifying your purchase. Please contact support if you have been charged. Error: ${error.message}`);
+            } finally {
+              setIsVerifyingPurchase(false);
+            }
+          } else {
+            console.warn("Mismatched session ID on return. Aborting verification.");
+            setIsVerifyingPurchase(false);
+          }
         }
-    }
-  }, []);
+      } else if (checkoutStatus === 'cancel') {
+          alert("Your checkout session was cancelled. Your cart has been saved.");
+          window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    };
+    verifyPurchase();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app]); // Dependency on `app` to ensure Firebase is ready.
 
-  const handleAddToCart = useCallback((videoId: string) => {
-    setCart(prevCart => {
-      if (prevCart.includes(videoId) || purchasedVideoIds.includes(videoId)) return prevCart;
-      return [...prevCart, videoId];
-    });
-  }, [purchasedVideoIds]);
-
-  const handleRemoveFromCart = useCallback((videoId: string) => {
-    setCart(prevCart => prevCart.filter(id => id !== videoId));
-  }, []);
-  
-  const handleClearCart = useCallback(() => {
-    setCart([]);
-  }, []);
-
-  const handleCheckout = useCallback(() => {
-    const itemsToCheckout = cart.map(id => videos.find(v => v.id === id)).filter(Boolean) as VideoFile[];
-    const total = itemsToCheckout.reduce((acc, item) => acc + (item.price || 0), 0);
-
-    if (total > 0) {
-      alert(`Checkout for ${itemsToCheckout.length} item(s) totaling $${total.toFixed(2)}.
-      
-This is where you would integrate a payment processor like Stripe.
-
-Upon successful payment, the items would be added to the user's "My Downloads" list.`);
-      // In a real app, you would only proceed to the next step after a successful payment.
-      // For this demo, we'll add them to the purchased list to show the functionality.
-    }
-    
-    // Add cart items to the purchased list, preventing duplicates.
-    setPurchasedVideoIds(prev => [...new Set([...prev, ...cart])]);
-    // Clear the cart.
-    setCart([]);
-    // Close the cart panel.
-    setIsCartOpen(false);
-    // Automatically open the purchases panel to show the new items.
-    setIsPurchasesOpen(true);
+  // Effect to protect cart items from cache eviction.
+  useEffect(() => {
+    const cartItems = videos.filter(v => cart.includes(v.id));
+    setProtectedUrls(cartItems.map(item => item.url));
   }, [cart, videos]);
 
-  const handleVideoDownloaded = useCallback((videoId: string) => {
-    setDownloadedVideoIds(prev => [...new Set([...prev, videoId])]);
-  }, []);
-
-  const handleSaveApiKey = useCallback((key: string) => {
-    try {
-      localStorage.setItem('gemini_api_key', key);
-      // Reload the page to ensure the geminiService is re-initialized everywhere with the new key.
-      window.location.reload();
-    } catch (e) {
-      alert("Failed to save API key. Your browser might be in private mode or has storage disabled.");
+  const handleSearch = useCallback(async (query: string) => {
+    setSearchTerm(query);
+    setCurrentPage(1);
+    if (query.length > 2) {
+      setIsSearching(true);
+      const terms = await getEnhancedSearchTerms(query);
+      setEnhancedSearchTerms(terms);
+      setIsSearching(false);
+    } else {
+      setEnhancedSearchTerms([]);
     }
   }, []);
-
-  const cartItems = useMemo(() => {
-    return cart.map(id => videos.find(video => video.id === id)).filter(Boolean) as VideoFile[];
-  }, [cart, videos]);
-
-  const ownedItems = useMemo(() => {
-    const freeItems = videos.filter(v => v.isFree);
-    const purchased = purchasedVideoIds
-      .map(id => videos.find(video => video.id === id))
-      .filter((v): v is VideoFile => !!v);
-    
-    const combined = [...purchased, ...freeItems];
-    const uniqueItems = Array.from(new Map(combined.map(item => [item.id, item])).values());
-    
-    // Sort for consistent order in the panel, e.g., by when they were created
-    return uniqueItems.sort((a, b) => b.createdAt - a.createdAt);
-  }, [videos, purchasedVideoIds]);
-
-  const undownloadedItemCount = useMemo(() => {
-    const ownedItemIds = ownedItems.map(item => item.id);
-    return ownedItemIds.filter(id => !downloadedVideoIds.includes(id)).length;
-  }, [ownedItems, downloadedVideoIds]);
 
   const filteredAndSortedVideos = useMemo(() => {
-    const filtered = videos
-      .filter(video => {
-        if (selectedCategory === 'All') return true;
-        if (selectedCategory === 'Free') return video.isFree;
-        return video.categories.includes(selectedCategory);
-      })
-      .filter(video => {
-        if (searchTerm.trim().length === 0) return true;
-        
-        const termsToMatch = enhancedSearchTerms.length > 0 ? enhancedSearchTerms : [searchTerm];
-        const videoText = `${video.title} ${video.description} ${video.keywords.join(' ')}`.toLowerCase();
+    let filtered = videos;
+    if (selectedCategory === 'Free') {
+      filtered = filtered.filter(v => v.isFree);
+    } else if (selectedCategory !== 'All') {
+      filtered = filtered.filter(v => v.categories.includes(selectedCategory));
+    }
 
-        return termsToMatch.some(term => videoText.includes(term.toLowerCase()));
-      });
-
-    return [...filtered].sort((a, b) => {
-      switch (sortBy) {
-        case 'featured':
-          if (a.isFeatured !== b.isFeatured) return b.isFeatured ? 1 : -1;
-          return b.commercialAppeal - a.commercialAppeal; // Fallback to popularity
-        case 'popular':
-          return b.commercialAppeal - a.commercialAppeal;
-        case 'newest':
-          return b.createdAt - a.createdAt;
-        case 'price-asc':
-          return a.price - b.price;
-        case 'price-desc':
-          return b.price - a.price;
-        default:
-          return 0;
-      }
-    });
+    if (searchTerm.length > 0) {
+      const searchTerms = [searchTerm, ...enhancedSearchTerms].map(t => t.toLowerCase());
+      filtered = filtered.filter(v => 
+        searchTerms.some(term => 
+          v.title.toLowerCase().includes(term) ||
+          v.keywords.some(kw => kw.toLowerCase().includes(term)) ||
+          v.categories.some(cat => cat.toLowerCase().includes(term))
+        )
+      );
+    }
+    
+    switch (sortBy) {
+      case 'featured':
+        return filtered.sort((a, b) => (b.isFeatured ? 1 : -1) - (a.isFeatured ? 1 : -1) || b.commercialAppeal - a.commercialAppeal);
+      case 'popular':
+        return filtered.sort((a, b) => b.commercialAppeal - a.commercialAppeal);
+      case 'newest':
+        return filtered.sort((a, b) => b.createdAt - a.createdAt);
+      case 'price-asc':
+        return filtered.sort((a, b) => a.price - b.price);
+      case 'price-desc':
+        return filtered.sort((a, b) => b.price - a.price);
+      default:
+        return filtered;
+    }
   }, [videos, selectedCategory, searchTerm, enhancedSearchTerms, sortBy]);
 
   const totalPages = Math.ceil(filteredAndSortedVideos.length / VIDEOS_PER_PAGE);
@@ -351,160 +207,198 @@ Upon successful payment, the items would be added to the user's "My Downloads" l
     return filteredAndSortedVideos.slice(startIndex, startIndex + VIDEOS_PER_PAGE);
   }, [filteredAndSortedVideos, currentPage]);
   
-  const renderContent = () => {
-    if (isLoading) {
-        return (
-            <div className="text-center py-20">
-                <Spinner className="h-12 w-12" />
-                <p className="mt-4 text-gray-400">Connecting to database...</p>
-            </div>
-        );
+  const cartItems = useMemo(() => videos.filter(v => cart.includes(v.id)), [videos, cart]);
+  const purchasedItems = useMemo(() => {
+      const allPurchasedIds = [...purchasedVideoIds, ...videos.filter(v => v.isFree).map(v => v.id)];
+      return videos.filter(v => allPurchasedIds.includes(v.id)).sort((a,b) => b.createdAt - a.createdAt);
+  }, [videos, purchasedVideoIds]);
+
+  const handleAddToCart = useCallback((videoId: string) => {
+    if (cart.includes(videoId) || purchasedVideoIds.includes(videoId)) return;
+    setCart(prev => [...prev, videoId]);
+    setIsCartOpen(true);
+  }, [cart, purchasedVideoIds]);
+
+  const handleRemoveFromCart = useCallback((videoId: string) => setCart(prev => prev.filter(id => id !== videoId)), []);
+  const handleClearCart = useCallback(() => setCart([]), []);
+
+  const handleVideoUpdate = useCallback(async (video: VideoFile) => {
+    if (!db) return;
+    const videoRef = doc(db, 'videos', video.id);
+    await updateDoc(videoRef, { ...video });
+    setSelectedVideo(null);
+  }, []);
+
+  const handleVideoDelete = useCallback(async (videoId: string) => {
+    if (!db) return;
+    if (window.confirm("Are you sure you want to permanently delete this video?")) {
+      await deleteDoc(doc(db, 'videos', videoId));
+      setSelectedVideo(null);
+    }
+  }, []);
+
+  const handleThumbnailGenerated = useCallback((videoId: string, dataUrl: string) => {
+      setVideos(prev => prev.map(v => v.id === videoId ? { ...v, generatedThumbnail: dataUrl } : v));
+  }, []);
+
+  const handleCheckout = useCallback(async () => {
+    setIsCheckingOut(true);
+    const currentCartItems = videos.filter(v => cart.includes(v.id));
+    const hasPaidItems = currentCartItems.some(item => !item.isFree);
+
+    // This logic handles free items.
+    if (!hasPaidItems && currentCartItems.length > 0) {
+      setPurchasedVideoIds(prev => [...new Set([...prev, ...cart])]);
+      setCart([]);
+      setIsCartOpen(false);
+      setIsPurchasesOpen(true);
+      setIsCheckingOut(false);
+      return;
+    }
+    
+    if (currentCartItems.length === 0) {
+        setIsCheckingOut(false);
+        return;
     }
 
-    if (connectionError) {
-      return (
-        <div className="text-center py-12 px-4 bg-red-900/20 border border-red-500/30 rounded-lg">
-          <WarningIcon className="w-16 h-16 mx-auto text-red-400" />
-          <h2 className="mt-4 text-2xl font-bold text-red-300">Application Error</h2>
-          <p className="text-red-400 mt-2 max-w-lg mx-auto">{connectionError}</p>
-          <div className="text-gray-400 mt-4 text-sm max-w-lg mx-auto text-left space-y-2">
-            <p>
-                This error can occur for a few reasons:
-                <ul className="list-disc list-inside mt-2 space-y-1">
-                    <li>The credentials in your <strong>firebase-config.ts</strong> file are incorrect or incomplete.</li>
-                    <li>Your Firebase project is not properly configured to allow connections from this website's domain.</li>
-                    <li>If the error mentions "Permission Denied", your Firestore Security Rules are blocking access.</li>
-                </ul>
-            </p>
-            <p>
-                For public read access, your <strong>Firestore Rules</strong> should be set to:
-            </p>
-          </div>
-          <pre className="text-xs bg-gray-900 p-3 mt-3 rounded-md block max-w-md mx-auto text-left overflow-x-auto">
-            <code>
-{`rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Allow anyone to read from the 'videos' collection
-    match /videos/{videoId} {
-      allow read: if true;
-      allow write: if false; // Protect your data
-    }
-  }
-}`}
-            </code>
-          </pre>
-        </div>
-      );
-    }
+    try {
+      if (!app) throw new Error("Firebase app is not initialized.");
 
-    if (videos.length === 0 && !isApiKeyMissing) {
-        return (
-            <div className="text-center py-20 bg-gray-800/50 rounded-lg">
-                <FilmIcon className="w-16 h-16 mx-auto text-gray-500" />
-                <h2 className="mt-4 text-2xl font-bold text-gray-300">Your Collection is Empty</h2>
-                <p className="text-gray-400 mt-2 max-w-md mx-auto">
-                  It looks like the connection to Firebase was successful, but there are no videos in your 'videos' collection yet. Videos added to your backend will appear here automatically.
-                </p>
-            </div>
-        );
+      const functions = getFunctions(app);
+      const createCheckoutSession = httpsCallable(functions, 'createCheckoutSession');
+      
+      const { data } = await createCheckoutSession({ cartItems: cart });
+      const { url: checkoutUrl, sessionId } = data as { url: string; sessionId: string };
+
+      if (!checkoutUrl || !sessionId) {
+        throw new Error("Could not retrieve a checkout URL or Session ID from the backend.");
+      }
+      
+      // Store session details to verify after redirect.
+      localStorage.setItem('pendingCheckoutSession', JSON.stringify({ sessionId, cart }));
+      
+      // Open Stripe Checkout in a new tab.
+      window.open(checkoutUrl, '_blank');
+      
+      // Close the cart, but DO NOT assume the purchase is complete yet.
+      // Verification will happen when the user is redirected back.
+      setIsCartOpen(false);
+
+    } catch (error: any) {
+      console.error("Error creating checkout session:", error);
+      alert(`Could not initiate checkout. Please ensure your backend function is deployed correctly. Error: ${error.message}`);
+    } finally {
+      setIsCheckingOut(false);
     }
-
-    return (
-      <>
-        {isDiscountBannerVisible && <DiscountBanner onDismiss={() => setIsDiscountBannerVisible(false)} />}
-        <VideoGrid 
-          videos={paginatedVideos} 
-          onVideoSelect={setSelectedVideo}
-          onAddToCart={handleAddToCart}
-          cart={cart}
-          purchasedVideoIds={purchasedVideoIds}
-          onThumbnailGenerated={handleThumbnailGenerated}
-          isAdmin={isAdmin}
-        />
-        {totalPages > 1 && (
-          <Pagination 
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-          />
-        )}
-      </>
-    );
-  };
-
+  }, [cart, videos, app]);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
-      <Header 
-        onSearch={setSearchTerm}
-        isSearching={isSearching} 
+    <div className="min-h-screen bg-gray-900">
+      {isVerifyingPurchase && (
+        <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-[100]">
+          <Spinner className="w-16 h-16" />
+          <h2 className="mt-4 text-2xl font-bold text-white">Verifying your purchase...</h2>
+          <p className="mt-2 text-gray-300">Please do not close or refresh this page.</p>
+        </div>
+       )}
+      <Header
+        onSearch={handleSearch}
+        isSearching={isSearching}
         onGuidanceClick={() => setIsGuidanceOpen(true)}
         onTroubleshootingClick={() => setIsTroubleshootingOpen(true)}
         cartItemCount={cart.length}
         onCartClick={() => setIsCartOpen(true)}
-        undownloadedItemCount={undownloadedItemCount}
+        undownloadedItemCount={purchasedItems.filter(p => !downloadedVideoIds.includes(p.id)).length}
         onPurchasesClick={() => setIsPurchasesOpen(true)}
         isAdmin={isAdmin}
         onUploadClick={() => setIsUploadPanelOpen(true)}
       />
 
       <main className="container mx-auto px-4 py-8">
-        {isApiKeyMissing && isAdmin && <ApiKeyBanner onSaveKey={handleSaveApiKey} />}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+        {isDiscountBannerVisible && <DiscountBanner onDismiss={() => setIsDiscountBannerVisible(false)} />}
+        
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
           <CategoryFilter
             categories={['All', 'Free', ...CATEGORIES]}
             selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
+            onSelectCategory={(cat) => { setSelectedCategory(cat); setCurrentPage(1); }}
           />
-          <SortDropdown selected={sortBy} onSelect={setSortBy} />
+          <SortDropdown selected={sortBy} onSelect={(opt) => { setSortBy(opt); setCurrentPage(1); }} />
         </div>
-        
-        {renderContent()}
-      </main>
-      
-      {isGuidanceOpen && (
-        <Guidance onClose={() => setIsGuidanceOpen(false)} />
-      )}
 
-      {isTroubleshootingOpen && (
-        <Troubleshooting onClose={() => setIsTroubleshootingOpen(false)} />
-      )}
-      
-      {isCartOpen && (
-        <CartPanel 
-          items={cartItems}
-          onClose={() => setIsCartOpen(false)}
-          onRemoveItem={handleRemoveFromCart}
-          onClearCart={handleClearCart}
-          onCheckout={handleCheckout}
-        />
-      )}
-      
-      {isPurchasesOpen && (
-        <PurchasesPanel
-          items={ownedItems}
-          onClose={() => setIsPurchasesOpen(false)}
-          downloadedVideoIds={downloadedVideoIds}
-          onVideoDownloaded={handleVideoDownloaded}
-        />
-      )}
+        {isLoading && <div className="text-center py-20"><Spinner className="w-12 h-12" /></div>}
+        
+        {connectionError && (
+          <div className="text-center py-20 bg-red-900/20 border border-red-500/30 rounded-lg p-8">
+            <WarningIcon className="w-12 h-12 text-red-400 mx-auto" />
+            <h2 className="mt-4 text-2xl font-bold text-red-300">Connection Error</h2>
+            <p className="mt-2 text-red-300/80">{connectionError}</p>
+          </div>
+        )}
+
+        {!isLoading && !connectionError && paginatedVideos.length === 0 && (
+          <div className="text-center py-20 bg-gray-800/50 rounded-lg p-8">
+            <FilmIcon className="w-12 h-12 text-gray-500 mx-auto" />
+            <h2 className="mt-4 text-2xl font-bold text-gray-400">No Videos Found</h2>
+            <p className="mt-2 text-gray-500">Try adjusting your search or category filters.</p>
+          </div>
+        )}
+
+        {!isLoading && !connectionError && paginatedVideos.length > 0 && (
+          <>
+            <VideoGrid
+              videos={paginatedVideos}
+              onVideoSelect={setSelectedVideo}
+              onAddToCart={handleAddToCart}
+              cart={cart}
+              purchasedVideoIds={purchasedItems.map(p => p.id)}
+              onThumbnailGenerated={handleThumbnailGenerated}
+              isAdmin={isAdmin}
+            />
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </>
+        )}
+      </main>
+
+      {isGuidanceOpen && <Guidance onClose={() => setIsGuidanceOpen(false)} />}
+      {isTroubleshootingOpen && <Troubleshooting onClose={() => setIsTroubleshootingOpen(false)} />}
+      {isUploadPanelOpen && <UploadPanel onClose={() => setIsUploadPanelOpen(false)} />}
 
       {selectedVideo && (
         <VideoPlayerModal
           video={selectedVideo}
           onClose={() => setSelectedVideo(null)}
-          onVideoUpdate={handleUpdateVideo}
-          onVideoDelete={handleDeleteVideo}
+          onVideoUpdate={handleVideoUpdate}
+          onVideoDelete={handleVideoDelete}
           onAddToCart={handleAddToCart}
           isInCart={cart.includes(selectedVideo.id)}
-          isPurchased={purchasedVideoIds.includes(selectedVideo.id)}
+          isPurchased={purchasedItems.some(p => p.id === selectedVideo.id)}
           isAdmin={isAdmin}
         />
       )}
-
-      {isAdmin && isUploadPanelOpen && (
-        <UploadPanel onClose={() => setIsUploadPanelOpen(false)} />
+      
+      {isCartOpen && (
+        <CartPanel
+          items={cartItems}
+          onClose={() => setIsCartOpen(false)}
+          onRemoveItem={handleRemoveFromCart}
+          onClearCart={handleClearCart}
+          onCheckout={handleCheckout}
+          isCheckingOut={isCheckingOut}
+        />
+      )}
+      
+      {isPurchasesOpen && (
+        <PurchasesPanel
+          items={purchasedItems}
+          onClose={() => setIsPurchasesOpen(false)}
+          downloadedVideoIds={downloadedVideoIds}
+          onVideoDownloaded={(id) => setDownloadedVideoIds(prev => [...new Set([...prev, id])])}
+        />
       )}
     </div>
   );
