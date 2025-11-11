@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import type { VideoFile } from '../types';
 import { XIcon, TrashIcon, SparklesIcon } from './Icons';
 import { Spinner } from './Spinner';
+import { correctUrlForBackblaze } from '../services/videoCacheService';
 
 interface CartPanelProps {
   items: VideoFile[];
@@ -65,36 +66,42 @@ export const CartPanel: React.FC<CartPanelProps> = ({ items, onClose, onRemoveIt
                             </p>
                         </div>
                         <ul role="list" className="-my-6 divide-y divide-gray-700">
-                          {items.map((item) => (
-                            <li key={item.id} className="py-6 flex">
-                              <div className="flex-shrink-0 w-24 h-14 border border-gray-700 rounded-md overflow-hidden bg-gray-900">
-                                <img 
-                                  src={item.generatedThumbnail || item.thumbnail} 
-                                  alt={item.title} 
-                                  className="w-full h-full object-cover" 
-                                  // Add a simple error handler in case both thumbnail URLs fail
-                                  onError={(e) => (e.currentTarget.style.display = 'none')}
-                                />
-                              </div>
-                              <div className="ml-4 flex-1 flex flex-col">
-                                <div>
-                                  <div className="flex justify-between text-base font-medium text-white">
-                                    <h3>{item.title}</h3>
-                                    <p className="ml-4">{item.isFree ? 'Free' : `$${item.price.toFixed(2)}`}</p>
-                                  </div>
-                                  <p className="mt-1 text-sm text-gray-400 truncate">{item.categories.join(', ')}</p>
+                          {items.map((item) => {
+                            const correctedThumbnailUrl = item.thumbnail && !item.thumbnail.startsWith('data:')
+                              ? correctUrlForBackblaze(item.thumbnail)
+                              : item.thumbnail;
+                              
+                            return (
+                              <li key={item.id} className="py-6 flex">
+                                <div className="flex-shrink-0 w-24 h-14 border border-gray-700 rounded-md overflow-hidden bg-gray-900">
+                                  <img 
+                                    src={item.generatedThumbnail || correctedThumbnailUrl || ''} 
+                                    alt={item.title} 
+                                    className="w-full h-full object-cover" 
+                                    referrerPolicy="no-referrer"
+                                    onError={(e) => (e.currentTarget.style.display = 'none')}
+                                  />
                                 </div>
-                                <div className="flex-1 flex items-end justify-between text-sm">
-                                  <p className="text-gray-500">Qty 1</p>
-                                  <div className="flex">
-                                    <button onClick={() => onRemoveItem(item.id)} type="button" className="font-medium text-indigo-400 hover:text-indigo-300">
-                                      Remove
-                                    </button>
+                                <div className="ml-4 flex-1 flex flex-col">
+                                  <div>
+                                    <div className="flex justify-between text-base font-medium text-white">
+                                      <h3>{item.title}</h3>
+                                      <p className="ml-4">{item.isFree ? 'Free' : `$${item.price.toFixed(2)}`}</p>
+                                    </div>
+                                    <p className="mt-1 text-sm text-gray-400 truncate">{item.categories.join(', ')}</p>
+                                  </div>
+                                  <div className="flex-1 flex items-end justify-between text-sm">
+                                    <p className="text-gray-500">Qty 1</p>
+                                    <div className="flex">
+                                      <button onClick={() => onRemoveItem(item.id)} type="button" className="font-medium text-indigo-400 hover:text-indigo-300">
+                                        Remove
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </li>
-                          ))}
+                              </li>
+                            );
+                          })}
                         </ul>
                       </>
                     ) : (
