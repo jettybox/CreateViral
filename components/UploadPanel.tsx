@@ -19,6 +19,14 @@ interface ParsedRow {
   errorMessage?: string;
 }
 
+// Custom encoder for Backblaze B2 friendly URLs.
+// B2 expects spaces to be encoded as '+' and preserves '/' for folders.
+const encodeB2Filename = (filename: string): string => {
+  return filename.split('/').map(segment => 
+      encodeURIComponent(segment).replace(/%20/g, '+')
+  ).join('/');
+};
+
 export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [b2UrlPrefix, setB2UrlPrefix] = useState('');
@@ -224,10 +232,11 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
         }
 
         const isFree = original.isFree?.toLowerCase() === 'true';
-        const videoUrl = `${urlPrefix}${encodeURIComponent(original.filename)}`;
-        const thumbnailUrl = original.thumbnail_filename
-          ? `${urlPrefix}${encodeURIComponent(original.thumbnail_filename)}`
-          : `${urlPrefix}${encodeURIComponent(original.filename.substring(0, original.filename.lastIndexOf('.')) + '.jpg')}`;
+        const videoUrl = `${urlPrefix}${encodeB2Filename(original.filename)}`;
+        const thumbnailFilename = original.thumbnail_filename
+          ? original.thumbnail_filename
+          : original.filename.substring(0, original.filename.lastIndexOf('.')) + '.jpg';
+        const thumbnailUrl = `${urlPrefix}${encodeB2Filename(thumbnailFilename)}`;
 
         const videoDoc: Omit<VideoFile, 'id'> = {
           url: videoUrl,
@@ -359,15 +368,18 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
             <p className="text-sm text-gray-400">Upload your videos to Backblaze, then import their metadata here.</p>
         </div>
         <div>
-          <label htmlFor="b2UrlPrefix" className="block text-sm font-medium text-gray-300 mb-1">1. Backblaze B2 Public URL Prefix</label>
+          <label htmlFor="b2UrlPrefix" className="block text-sm font-medium text-gray-300 mb-1">1. Backblaze B2 S3 URL Prefix</label>
           <input
             id="b2UrlPrefix"
             type="text"
-            placeholder="e.g., https://f005.backblazeb2.com/file/your-bucket/"
+            placeholder="e.g., https://your-bucket.s3.us-west-002.backblazeb2.com/"
             className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
             value={b2UrlPrefix}
             onChange={handlePrefixChange}
           />
+           <p className="text-xs text-gray-400 mt-1">
+            <strong>Important:</strong> In your B2 bucket details, copy the <strong>S3 URL</strong>, not the Friendly URL.
+          </p>
         </div>
         <div>
           <label htmlFor="file-upload" className="block text-sm font-medium text-gray-300 mb-1">2. Upload Metadata CSV</label>
