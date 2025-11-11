@@ -22,17 +22,18 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
   const cardRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<number | null>(null);
   const hasGeneratedThumbnail = useRef(false);
-  // A more reliable way to detect touch capabilities vs user-agent sniffing.
-  const isTouchDevice = useRef(typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
 
-  // We only need to generate a thumbnail if one doesn't already exist in the state.
-  // By removing the touch device check, this is now enabled for mobile.
-  const needsThumbnailGeneration = !video.generatedThumbnail;
+  // A reliable way to detect touch capabilities to provide a different, more robust mobile experience.
+  const isTouchDevice = useMemo(() => 
+    typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0), 
+  []);
+
+  // For desktop, we generate thumbnails on the fly. For mobile, this is unreliable,
+  // so we disable it and let the browser show the first frame of the video.
+  const needsThumbnailGeneration = !isTouchDevice && !video.generatedThumbnail;
   const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(needsThumbnailGeneration);
 
   const correctedThumbnailUrl = useMemo(() => {
-    // The generatedThumbnail is a data URL and doesn't need correction.
-    // Only correct the thumbnail from storage if it's a real URL.
     if (video.thumbnail && !video.thumbnail.startsWith('data:')) {
       return correctUrlForBackblaze(video.thumbnail);
     }
@@ -74,30 +75,32 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
   }, [video.url]);
 
   const handleMouseEnter = () => {
+    if (isTouchDevice) return;
     hoverTimeoutRef.current = window.setTimeout(() => {
       setIsHovering(true);
     }, 300);
   };
 
   const handleMouseLeave = () => {
+    if (isTouchDevice) return;
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
     setIsHovering(false);
   };
   
-  // Effect to play/pause video on hover, but only on non-touch devices
+  // Effect to play/pause video on hover, desktop only.
   useEffect(() => {
+    if (isTouchDevice) return;
     if (isHovering && videoRef.current) {
       videoRef.current.play().catch(error => {
-        // This is expected on some browsers, so we can log it quietly.
         console.warn("Autoplay was prevented:", error.message);
       });
     } else if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
     }
-  }, [isHovering]);
+  }, [isHovering, isTouchDevice]);
   
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -108,23 +111,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
     };
   }, []);
 
-  // Thumbnail generation logic, runs when video data is loaded
+  // Thumbnail generation logic, runs only on desktop when video data is loaded.
   const handleDataLoaded = () => {
     const videoElement = videoRef.current;
     
     if (needsThumbnailGeneration && videoElement && !hasGeneratedThumbnail.current) {
       hasGeneratedThumbnail.current = true;
-
-      // Set a timeout to prevent the spinner from getting stuck on mobile devices
-      // if the video fails to seek and the 'seeked' event never fires.
-      const generationTimeout = setTimeout(() => {
-        console.warn(`Thumbnail generation for ${video.id} timed out.`);
-        setIsGeneratingThumbnail(false);
-      }, 5000); // 5-second timeout
-
       const captureFrame = () => {
-        clearTimeout(generationTimeout); // Success, so clear the timeout
-        if (!videoElement) return;
         try {
           const canvas = document.createElement('canvas');
           canvas.width = videoElement.videoWidth;
@@ -133,8 +126,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           if (ctx) {
             ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
             const dataUrl = canvas.toDataURL('image/jpeg');
-            // We no longer set the poster. We notify the parent, which will cause a re-render
-            // and update the <img> tag's src.
             onThumbnailGenerated(dataUrl);
           }
         } catch (error) {
@@ -147,7 +138,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
       videoElement.addEventListener('seeked', captureFrame, { once: true });
       videoElement.currentTime = 1; // Seek to the 1-second mark.
     } else {
-      // If we don't need a thumbnail (e.g., it's already generated), just ensure the spinner is off.
       setIsGeneratingThumbnail(false);
     }
   };
@@ -169,46 +159,50 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
       ref={cardRef}
       className="bg-gray-800 rounded-lg overflow-hidden shadow-lg cursor-pointer group transition-all duration-300 transform hover:scale-105 hover:shadow-indigo-500/30 h-full flex flex-col"
       onClick={onSelect}
-      onMouseEnter={isTouchDevice.current ? undefined : handleMouseEnter}
-      onMouseLeave={isTouchDevice.current ? undefined : handleMouseLeave}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <div className="relative flex-grow bg-black aspect-video">
-        {/* Layer 1: Thumbnail Image (Always present, used as poster) */}
-        <img
-          src={video.generatedThumbnail || correctedThumbnailUrl || ''}
-          alt={video.title}
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${isHovering ? 'opacity-0' : 'opacity-100'}`}
-          referrerPolicy="no-referrer"
-          loading="lazy"
-          onError={(e) => {
-            console.warn(`Failed to load thumbnail for video ${video.id}:`, correctedThumbnailUrl);
-            (e.target as HTMLImageElement).style.display = 'none'; // Hide broken image icon
-          }}
-        />
+        {/* DESKTOP-ONLY: Image overlay for smooth hover effect */}
+        {!isTouchDevice && (
+          <img
+            src={video.generatedThumbnail || correctedThumbnailUrl || ''}
+            alt={video.title}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${isHovering ? 'opacity-0' : 'opacity-100'}`}
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        )}
 
-        {/* Layer 2: Video Player (Hidden by default, revealed on hover on desktop) */}
+        {/* Video Player: Always present, but configured differently for mobile vs. desktop */}
         {resolvedSrc && (
           <video
             ref={videoRef}
             src={resolvedSrc}
-            onLoadedData={handleDataLoaded}
+            onLoadedData={isTouchDevice ? undefined : handleDataLoaded}
+            poster={correctedThumbnailUrl || ''} // Use poster for mobile + as a fallback
             className="absolute inset-0 w-full h-full object-cover"
             loop
             muted
             playsInline
-            preload="metadata"
-            crossOrigin="anonymous" // Required for drawing remote video to canvas
+            // 'auto' on mobile encourages the first frame to load, fixing the black screen issue.
+            // 'metadata' is more efficient for desktop hover-previews.
+            preload={isTouchDevice ? 'auto' : 'metadata'}
+            crossOrigin="anonymous"
           />
         )}
         
-        {/* Layer 3: Loading Spinner (For initial load or thumbnail generation) */}
+        {/* Loading Spinner (for initial load or desktop thumbnail generation) */}
         {(isGeneratingThumbnail || !resolvedSrc) && (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50">
                 <Spinner className="w-8 h-8" />
             </div>
         )}
         
-        {/* Layer 4: UI Overlay (Play icon, price, etc.) */}
+        {/* UI Overlay */}
         <div className="absolute inset-0 bg-black bg-opacity-40 group-hover:bg-opacity-60 transition-all duration-300 flex items-center justify-center">
            <PlayIcon className={`w-12 h-12 text-white/80 transform transition-all duration-300 pointer-events-none ${isHovering ? 'opacity-0 scale-75' : 'opacity-100 group-hover:scale-110'}`} />
         </div>
