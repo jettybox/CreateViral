@@ -13,24 +13,15 @@ interface PurchasesPanelProps {
 export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, downloadedVideoIds, onVideoDownloaded }) => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  const handleDownload = async (video: VideoFile) => {
-    if (downloadingId === video.id) return; // Prevent multiple clicks while downloading
+  const handleDownload = (video: VideoFile) => {
+    if (downloadingId === video.id) return; // Prevent multiple clicks
 
     setDownloadingId(video.id);
     try {
-      // Fetch the video data. This bypasses the browser's default behavior of navigating to the URL.
-      const response = await fetch(video.url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch video: ${response.statusText}`);
-      }
-      const blob = await response.blob();
-
-      // Create a temporary local URL for the downloaded blob.
-      const blobUrl = window.URL.createObjectURL(blob);
-
       // Create a temporary anchor element to trigger the download.
+      // This is a more robust method for cross-origin downloads than using fetch().
       const link = document.createElement('a');
-      link.href = blobUrl;
+      link.href = video.url;
       const filename = video.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
       link.setAttribute('download', `${filename}.mp4`);
       
@@ -39,10 +30,7 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
       link.click();
       document.body.removeChild(link);
 
-      // Clean up the temporary blob URL to free up memory.
-      window.URL.revokeObjectURL(blobUrl);
-
-      // Notify parent component that the download is complete
+      // Optimistically mark as downloaded. The browser handles the actual download process.
       onVideoDownloaded(video.id);
       
       // Provide guidance for mobile users
@@ -61,10 +49,12 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
       }
 
     } catch (error) {
-      console.error("Download failed:", error);
-      alert("Sorry, the download could not be completed. Please check the console for details.");
+      console.error("Download initialization failed:", error);
+      alert("Sorry, the download could not be started. Please check the console for details.");
     } finally {
-      setDownloadingId(null); // Reset the downloading state
+      // Reset the downloading state after a short delay to allow the browser to start the download
+      // and prevent spam-clicking.
+      setTimeout(() => setDownloadingId(null), 1000);
     }
   };
 
@@ -100,6 +90,7 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
                                   src={item.generatedThumbnail || item.thumbnail} 
                                   alt={item.title} 
                                   className="w-full h-full object-cover" 
+                                  referrerPolicy="no-referrer"
                                   onError={(e) => (e.currentTarget.style.display = 'none')}
                                 />
                               </div>
@@ -125,7 +116,7 @@ export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, 
                                   >
                                     {downloadingId === item.id ? (
                                       <>
-                                        <Spinner className="w-4 h-4" /> Downloading...
+                                        <Spinner className="w-4 h-4" /> Initiating...
                                       </>
                                     ) : (
                                       <>
