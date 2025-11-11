@@ -16,13 +16,16 @@ interface VideoCardProps {
 
 export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart, isPurchased, onThumbnailGenerated, isAdmin }) => {
   const [isHovering, setIsHovering] = useState(false);
-  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(true);
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<number | null>(null);
   const hasGeneratedThumbnail = useRef(false);
+  
+  // We only need to generate a thumbnail if one doesn't already exist in the state.
+  const needsThumbnailGeneration = !video.generatedThumbnail;
+  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(needsThumbnailGeneration);
 
   // Lazy-load video when it comes into view
   useEffect(() => {
@@ -95,10 +98,22 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
 
   const handleDataLoaded = () => {
     const videoElement = videoRef.current;
-    if (videoElement && !hasGeneratedThumbnail.current) {
-      hasGeneratedThumbnail.current = true; // Prevents this from running multiple times
+    
+    // Only attempt generation if we determined at mount that we need to and haven't tried already.
+    if (needsThumbnailGeneration && videoElement && !hasGeneratedThumbnail.current) {
+      hasGeneratedThumbnail.current = true;
+
+      // Failsafe: Mobile browsers can be strict and may never fire the 'seeked' event.
+      // This timeout ensures the spinner doesn't get stuck forever.
+      const generationTimeout = setTimeout(() => {
+        console.warn(`Thumbnail generation for video ${video.id} timed out.`);
+        setIsGeneratingThumbnail(false);
+        // Clean up the event listener to prevent it from firing later.
+        videoElement.removeEventListener('seeked', captureFrame);
+      }, 3000); // 3-second timeout.
 
       const captureFrame = () => {
+        clearTimeout(generationTimeout); // Success! Clear the failsafe timeout.
         if (!videoElement) return;
         try {
           const canvas = document.createElement('canvas');
@@ -115,15 +130,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           console.error("Error generating thumbnail from video:", error);
         } finally {
           setIsGeneratingThumbnail(false);
-          // The event listener is registered with { once: true }, so it removes itself automatically.
         }
       };
       
       videoElement.addEventListener('seeked', captureFrame, { once: true });
-      // Seek to the 1-second mark to capture a representative frame.
-      videoElement.currentTime = 1;
-    } else if (hasGeneratedThumbnail.current) {
-      // If data loads again (e.g., on loop), ensure the spinner is hidden.
+      videoElement.currentTime = 1; // Seek to the 1-second mark.
+    } else {
+      // If we don't need to generate a thumbnail, just ensure the spinner is off.
       setIsGeneratingThumbnail(false);
     }
   };
@@ -154,6 +167,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           <video
             ref={videoRef}
             src={resolvedSrc}
+            poster={video.generatedThumbnail || video.thumbnail}
             onLoadedData={handleDataLoaded}
             className={`w-full h-full object-cover transition-opacity duration-300 ${isGeneratingThumbnail ? 'opacity-0' : 'opacity-100'}`}
             loop
@@ -164,7 +178,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gray-900">
-             {/* Placeholder until IntersectionObserver triggers load */}
+             {/* Use the provided thumbnail as a static placeholder before the video loads */}
+             <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover opacity-50" referrerPolicy="no-referrer" />
           </div>
         )}
         
