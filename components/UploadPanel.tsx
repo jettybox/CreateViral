@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { collection, writeBatch, doc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
 import { db } from '../firebase-config';
 import type { VideoFile } from '../types';
-import { XIcon, UploadIcon, CheckIcon, SparklesIcon, RefreshIcon } from './Icons';
+import { XIcon, UploadIcon, CheckIcon, SparklesIcon, RefreshIcon, KeyIcon } from './Icons';
 import { Spinner } from './Spinner';
-import { enhanceVideoMetadata, isApiKeyAvailable } from '../services/geminiService';
+import { enhanceVideoMetadata, isApiKeyAvailable, setApiKey as saveApiKeyToService } from '../services/geminiService';
 
 interface UploadPanelProps {
   onClose: () => void;
@@ -35,6 +35,7 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [isGeminiAvailable, setIsGeminiAvailable] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
 
   useEffect(() => {
     const savedPrefix = localStorage.getItem('b2UrlPrefix');
@@ -136,6 +137,14 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
       processFile();
     }
   }, [status, processFile]);
+  
+  const handleSaveApiKey = () => {
+    if (apiKeyInput.trim()) {
+      saveApiKeyToService(apiKeyInput.trim());
+      setIsGeminiAvailable(true); // Update UI to show the 'Enhance' button
+      setApiKeyInput(''); // Clear the input field
+    }
+  };
 
   const handleEnhance = async () => {
     setStatus('enhancing');
@@ -166,14 +175,10 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
   };
   
   const handleRetryEnhance = async (index: number) => {
-    // Get the data needed for the API call from the original, immutable data source.
-    // This avoids using a stale closure over the `parsedRows` state.
     const rowData = parsedRows[index].original;
     const title = rowData.title || rowData.filename || '';
     const keywords = rowData.keywords ? rowData.keywords.split(/[,;]/).map(kw => kw.trim()).filter(Boolean) : [];
     
-    // Use a functional update to set the status to 'pending' immutably.
-    // This is safe from race conditions.
     setParsedRows(currentRows =>
       currentRows.map((row, i) =>
         i === index ? { ...row, status: 'pending', errorMessage: undefined } : row
@@ -187,7 +192,6 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
       
       const enhancedData = await enhanceVideoMetadata({ title, keywords });
 
-      // On success, perform another safe, functional update.
       setParsedRows(currentRows =>
         currentRows.map((row, i) =>
           i === index
@@ -198,7 +202,6 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
     } catch (error: any) {
       console.error("Retry enhancement failed for row", index, error);
       
-      // On failure, perform a final safe, functional update.
       setParsedRows(currentRows =>
         currentRows.map((row, i) =>
           i === index
@@ -410,23 +413,47 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
   };
   
   const renderFooter = () => {
-    if (status === 'idle') return null;
-    if (status === 'success') return null;
-    if (status === 'enhancing') return null;
+    if (status === 'idle' || status === 'success' || status === 'enhancing') {
+      return null;
+    }
 
     if (status === 'processing' && parsedRows.length > 0) {
        return (
          <div className="p-4 bg-gray-800/50 border-t border-gray-700 grid grid-cols-2 gap-4">
-            <button
-                onClick={handleEnhance}
-                disabled={!isGeminiAvailable}
-                title={!isGeminiAvailable ? "To enable, set the API_KEY secret in your project environment." : "Enhance metadata using Gemini AI"}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-                <SparklesIcon className="w-5 h-5" />
-                Enhance with AI
-                {!isGeminiAvailable && <span className="text-xs">(No API Key set in environment)</span>}
-            </button>
+            {isGeminiAvailable ? (
+                <button
+                    onClick={handleEnhance}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition-colors group"
+                >
+                    <SparklesIcon className="w-5 h-5 text-indigo-300" />
+                    Enhance with AI
+                </button>
+            ) : (
+                <div className="p-3 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                    <label htmlFor="api-key-input" className="block text-xs font-medium text-yellow-300 mb-1">Set Gemini API Key to Enhance</label>
+                    <div className="flex gap-2">
+                        <div className="relative flex-grow">
+                             <KeyIcon className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                            <input
+                                type="password"
+                                id="api-key-input"
+                                value={apiKeyInput}
+                                onChange={(e) => setApiKeyInput(e.target.value)}
+                                placeholder="Paste API key here"
+                                className="w-full pl-8 pr-2 py-1.5 text-sm bg-gray-900/50 border border-yellow-500/50 rounded-md focus:outline-none focus:ring-1 focus:ring-yellow-400 text-white"
+                            />
+                        </div>
+                        <button
+                            onClick={handleSaveApiKey}
+                            disabled={!apiKeyInput.trim()}
+                            className="px-3 py-1.5 text-sm bg-yellow-500 text-gray-900 font-bold rounded-md hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 disabled:opacity-50"
+                        >
+                            Save
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <button
                 onClick={handleImport}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors"
