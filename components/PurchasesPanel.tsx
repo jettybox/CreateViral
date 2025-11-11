@@ -13,48 +13,54 @@ interface PurchasesPanelProps {
 export const PurchasesPanel: React.FC<PurchasesPanelProps> = ({ items, onClose, downloadedVideoIds, onVideoDownloaded }) => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  const handleDownload = (video: VideoFile) => {
-    if (downloadingId === video.id) return; // Prevent multiple clicks
+  const handleDownload = async (video: VideoFile) => {
+    if (downloadingId === video.id) return;
 
     setDownloadingId(video.id);
     try {
-      // Create a temporary anchor element to trigger the download.
-      // This is a more robust method for cross-origin downloads than using fetch().
+      // Fetch the video file as a blob. This is the most reliable method for forcing a download,
+      // as it avoids cross-origin navigation issues. It requires correct CORS settings on the storage provider.
+      const response = await fetch(video.url);
+      
+      if (!response.ok) {
+        throw new Error(`The video could not be fetched. Status: ${response.status} ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      
+      // Create a temporary URL from the blob data. This URL is local to the user's browser.
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      // Create a temporary anchor element to trigger the browser's download functionality.
+      // Because the href is a same-origin blob URL, the 'download' attribute will be respected by the browser.
       const link = document.createElement('a');
-      link.href = video.url;
+      link.href = blobUrl;
       const filename = video.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
       link.setAttribute('download', `${filename}.mp4`);
       
-      // Append to the document, click to trigger download, and then remove.
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // Optimistically mark as downloaded. The browser handles the actual download process.
-      onVideoDownloaded(video.id);
       
-      // Provide guidance for mobile users
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      if (isMobile) {
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-        
-        // Use a small timeout to allow the download to initiate before showing the alert
-        setTimeout(() => {
-          if (isIOS) {
-            alert("Download Started!\n\nYour video has been saved to the 'Files' app on your iPhone/iPad. Look in the 'Downloads' folder. From there, you can save it to your Photos library.");
-          } else { // Generic message for Android and other mobile OS
-            alert("Download Started!\n\nCheck your device's 'Downloads' folder or your browser's download manager to find your video.");
-          }
-        }, 500);
-      }
+      // Clean up the temporary blob URL to release memory.
+      window.URL.revokeObjectURL(blobUrl);
 
-    } catch (error) {
-      console.error("Download initialization failed:", error);
-      alert("Sorry, the download could not be started. Please check the console for details.");
+      onVideoDownloaded(video.id);
+
+    } catch (error: any) {
+      console.error("Download failed:", error);
+      // A 'TypeError' with 'Failed to fetch' is the classic browser indicator of a CORS security error.
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        alert(
+          "Download Failed: A security error occurred while trying to fetch the video file.\n\n" +
+          "This is almost always caused by missing or incorrect CORS (Cross-Origin Resource Sharing) settings on your video storage bucket (e.g., Backblaze B2).\n\n" +
+          "ACTION REQUIRED: Please go to your bucket settings and ensure CORS rules are set to 'Share everything in this bucket with every origin'. This allows the website to access the video for download."
+        );
+      } else {
+        alert(`Sorry, the download could not be completed. Error: ${error.message}`);
+      }
     } finally {
-      // Reset the downloading state after a short delay to allow the browser to start the download
-      // and prevent spam-clicking.
-      setTimeout(() => setDownloadingId(null), 1000);
+      setDownloadingId(null);
     }
   };
 
