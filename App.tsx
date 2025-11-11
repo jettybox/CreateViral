@@ -227,8 +227,9 @@ export default function App() {
   
   const cartItems = useMemo(() => videos.filter(v => cart.includes(v.id)), [videos, cart]);
   const purchasedItems = useMemo(() => {
-      const allPurchasedIds = [...purchasedVideoIds, ...videos.filter(v => v.isFree).map(v => v.id)];
-      return videos.filter(v => allPurchasedIds.includes(v.id)).sort((a,b) => b.createdAt - a.createdAt);
+      // Free items are no longer automatically owned.
+      // The user must add them to the cart and "checkout" for free.
+      return videos.filter(v => purchasedVideoIds.includes(v.id)).sort((a,b) => b.createdAt - a.createdAt);
   }, [videos, purchasedVideoIds]);
 
   const handleAddToCart = useCallback((videoId: string) => {
@@ -243,8 +244,16 @@ export default function App() {
   const handleVideoUpdate = useCallback(async (video: VideoFile) => {
     if (!db) return;
     const videoRef = doc(db, 'videos', video.id);
-    await updateDoc(videoRef, { ...video });
-    setSelectedVideo(null);
+    try {
+      await updateDoc(videoRef, { ...video });
+      // Update local state for immediate UI feedback. The onSnapshot listener will
+      // also fire, but this prevents a noticeable delay for the admin.
+      setVideos(prev => prev.map(v => v.id === video.id ? video : v));
+      setSelectedVideo(null);
+    } catch (error) {
+      console.error("Failed to update video:", error);
+      alert("An error occurred while saving. Please check the console and try again.");
+    }
   }, []);
 
   const handleVideoDelete = useCallback(async (videoId: string) => {
