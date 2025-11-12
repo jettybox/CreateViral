@@ -8,11 +8,10 @@ interface VideoGridProps {
   onAddToCart: (videoId: string) => void;
   cart: string[];
   purchasedVideoIds: string[];
-  onThumbnailGenerated: (videoId: string, dataUrl: string) => void;
   isAdmin: boolean;
 }
 
-export const VideoGrid: React.FC<VideoGridProps> = ({ videos, onVideoSelect, onAddToCart, cart, purchasedVideoIds, onThumbnailGenerated, isAdmin }) => {
+export const VideoGrid: React.FC<VideoGridProps> = ({ videos, onVideoSelect, onAddToCart, cart, purchasedVideoIds, isAdmin }) => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {videos.map((video) => {
@@ -25,7 +24,6 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ videos, onVideoSelect, onA
               onAddToCart={() => onAddToCart(video.id)}
               isInCart={cart.includes(video.id)}
               isPurchased={purchasedVideoIds.includes(video.id)}
-              onThumbnailGenerated={(dataUrl) => onThumbnailGenerated(video.id, dataUrl)}
               isAdmin={isAdmin}
             />
           </div>
