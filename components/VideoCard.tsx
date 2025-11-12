@@ -3,6 +3,8 @@ import type { VideoFile } from '../types';
 import { PlayIcon, CartIcon, CheckIcon, DownloadIcon } from './Icons';
 import { Spinner } from './Spinner';
 import { getCachedVideoUrl, correctUrlForBackblaze } from '../services/videoCacheService';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-storage.js';
+import { storage } from '../firebase-config';
 
 interface VideoCardProps {
   video: VideoFile;
@@ -10,7 +12,7 @@ interface VideoCardProps {
   onAddToCart: () => void;
   isInCart: boolean;
   isPurchased: boolean;
-  onThumbnailGenerated: (dataUrl: string) => void;
+  onThumbnailGenerated: (downloadUrl: string) => void;
   isAdmin: boolean;
 }
 
@@ -103,15 +105,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
     };
   }, []);
 
-  // This function runs when the video element has loaded enough data to capture a frame.
-  // It's triggered only when `isGeneratingThumbnail` is true.
+  // This function captures a video frame, uploads it to Firebase Storage,
+  // and returns the public URL.
   const handleDataLoaded = () => {
     const videoElement = videoRef.current;
     
-    if (isGeneratingThumbnail && videoElement && !hasGeneratedThumbnail.current) {
+    if (isGeneratingThumbnail && videoElement && !hasGeneratedThumbnail.current && storage) {
       hasGeneratedThumbnail.current = true; // Prevents re-running in the same session
 
-      const captureFrame = () => {
+      const captureAndUploadFrame = () => {
         if (!videoElement) return;
         try {
           const canvas = document.createElement('canvas');
@@ -120,20 +122,37 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-            const dataUrl = canvas.toDataURL('image/jpeg');
-            // Notify the parent component to save this thumbnail to the database.
-            onThumbnailGenerated(dataUrl);
+            canvas.toBlob(async (blob) => {
+              if (blob) {
+                try {
+                  const storageRef = ref(storage, `generated-thumbnails/${video.id}.jpg`);
+                  await uploadBytes(storageRef, blob);
+                  const downloadUrl = await getDownloadURL(storageRef);
+                  // Notify parent with the permanent public URL.
+                  onThumbnailGenerated(downloadUrl);
+                } catch (uploadError) {
+                   console.error("Error uploading generated thumbnail:", uploadError);
+                } finally {
+                   setIsGeneratingThumbnail(false);
+                }
+              } else {
+                 setIsGeneratingThumbnail(false);
+              }
+            }, 'image/jpeg', 0.9);
+          } else {
+            setIsGeneratingThumbnail(false);
           }
         } catch (error) {
-          console.error("Error generating thumbnail from video:", error);
-        } finally {
-          // The generation attempt is complete. This will hide the spinner.
+          console.error("Error generating thumbnail blob from video:", error);
           setIsGeneratingThumbnail(false);
         }
       };
       
-      videoElement.addEventListener('seeked', captureFrame, { once: true });
-      videoElement.currentTime = 1; // Seek to the 1-second mark.
+      videoElement.addEventListener('seeked', captureAndUploadFrame, { once: true });
+      videoElement.currentTime = 1; // Seek to the 1-second mark for a better frame.
+    } else if (!storage) {
+        console.warn("Firebase Storage not available, cannot upload generated thumbnail.");
+        setIsGeneratingThumbnail(false);
     }
   };
 
