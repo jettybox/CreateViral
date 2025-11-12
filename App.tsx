@@ -95,7 +95,6 @@ export default function App() {
           createdAt: data.createdAt || 0,
           width: data.width,
           height: data.height,
-          generatedThumbnail: data.generatedThumbnail,
         };
       });
       setVideos(videosData);
@@ -228,7 +227,7 @@ export default function App() {
       case 'newest':
         return filtered.sort((a, b) => b.createdAt - a.createdAt);
       case 'price-asc':
-        return filtered.sort((a, b) => a.price - b.price);
+        return filtered.sort((a, b) => a.price - a.price);
       case 'price-desc':
         return filtered.sort((a, b) => b.price - a.price);
       default:
@@ -287,27 +286,6 @@ export default function App() {
     }
   }, []);
 
-  const handleThumbnailGenerated = useCallback(async (videoId: string, downloadUrl: string) => {
-    // Optimistically update the UI with the new, permanent URL for instant feedback.
-    setVideos(prev => prev.map(v => v.id === videoId ? { ...v, generatedThumbnail: downloadUrl } : v));
-
-    // Persist the generated thumbnail URL to the database to prevent re-generating it on next load.
-    if (!db) {
-      console.error("Database not available, cannot save generated thumbnail.");
-      return;
-    }
-    
-    const videoRef = doc(db, 'videos', videoId);
-    try {
-      // We await this operation to reduce the chance of a race condition where
-      // the user checks out before the new thumbnail URL is saved to the database.
-      await updateDoc(videoRef, { generatedThumbnail: downloadUrl });
-    } catch (error) {
-      console.error("Failed to save generated thumbnail to Firestore:", error);
-      // Optional: Could add logic here to revert the optimistic UI update if persistence fails.
-    }
-  }, []);
-
   const handleCheckout = useCallback(async () => {
     setIsCheckingOut(true);
     const currentCartItems = videos.filter(v => cart.includes(v.id));
@@ -334,13 +312,10 @@ export default function App() {
       const functions = getFunctions(app);
       const createCheckoutSession = httpsCallable(functions, 'createCheckoutSession');
       
-      // The backend is the source of truth for price/title, but we send the
-      // thumbnail from the client, as it may be more up-to-date than Firestore
-      // due to the optimistic update after on-the-fly generation.
+      // The backend is now the single source of truth for all video data including
+      // price and thumbnails. The client only needs to send the video IDs.
       const cartPayload = currentCartItems.map(item => ({
         id: item.id,
-        // Send the best available thumbnail URL from the client's state.
-        thumbnailUrl: item.generatedThumbnail || item.thumbnail || '',
       }));
 
       const { data } = await createCheckoutSession({ cartItems: cartPayload });
@@ -428,7 +403,6 @@ export default function App() {
               onAddToCart={handleAddToCart}
               cart={cart}
               purchasedVideoIds={purchasedItems.map(p => p.id)}
-              onThumbnailGenerated={handleThumbnailGenerated}
               isAdmin={isAdmin}
             />
             {hasMoreVideos && (
