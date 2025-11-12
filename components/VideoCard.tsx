@@ -194,7 +194,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
   return (
     <div 
       ref={cardRef}
-      className="bg-gray-800 rounded-lg overflow-hidden shadow-lg cursor-pointer group transition-all duration-300 transform hover:scale-105 hover:shadow-indigo-500/30 h-full flex flex-col"
+      className="bg-gray-800 rounded-lg overflow-hidden shadow-lg cursor-pointer group transition-all duration-300 transform hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/40 h-full flex flex-col"
       onClick={onSelect}
       onMouseEnter={isTouchDevice.current ? undefined : handleMouseEnter}
       onMouseLeave={isTouchDevice.current ? undefined : handleMouseLeave}
@@ -237,7 +237,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
         )}
         
         {/* Layer 4: UI Overlay (Play icon, price, etc.) */}
-        <div className="absolute inset-0 bg-black bg-opacity-40 group-hover:bg-opacity-60 transition-all duration-300 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black bg-opacity-40 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center">
            <PlayIcon className={`w-12 h-12 text-white/80 transform transition-all duration-300 pointer-events-none ${isHovering ? 'opacity-0 scale-75' : 'opacity-100 group-hover:scale-110'}`} />
         </div>
          {video.isFree && (
