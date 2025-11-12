@@ -14,10 +14,20 @@ type Status = 'idle' | 'file-selected' | 'processing' | 'enhancing' | 'error' | 
 
 interface ParsedRow {
   original: Record<string, string>;
-  enhanced: Partial<VideoFile>;
+  enhanced: Partial<Omit<VideoFile, 'id' | 'url' | 'thumbnail'>>;
   status: 'pending' | 'enhanced' | 'error';
   errorMessage?: string;
 }
+
+// Map of Backblaze region codes to S3-compatible region names.
+const B2_REGION_MAP: { [key: string]: string } = {
+  '000': 'us-west-000',
+  '001': 'us-west-001',
+  '002': 'us-west-002',
+  '003': 'eu-central-003',
+  '004': 'us-west-004',
+  '005': 'ap-southeast-005',
+};
 
 // Custom encoder for Backblaze B2 friendly URLs.
 // B2 expects spaces to be encoded as '+' and preserves '/' for folders.
@@ -30,6 +40,7 @@ const encodeB2Filename = (filename: string): string => {
 export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [b2UrlPrefix, setB2UrlPrefix] = useState('');
+  const [prefixWarning, setPrefixWarning] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
@@ -46,7 +57,28 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
   const handlePrefixChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPrefix = e.target.value;
     setB2UrlPrefix(newPrefix);
-    localStorage.setItem('b2UrlPrefix', newPrefix);
+    
+    // Auto-correction logic: If the user pastes a Friendly URL, convert it to the S3 URL.
+    const friendlyUrlRegex = /^(https?:\/\/f(\d{3})\.backblazeb2\.com)\/file\/([^\/]+)\/?/;
+    const match = newPrefix.trim().match(friendlyUrlRegex);
+
+    if (match) {
+        const regionCode = match[2];
+        const bucketName = match[3];
+        const region = B2_REGION_MAP[regionCode];
+        if (region) {
+            const s3Prefix = `https://${bucketName}.s3.${region}.backblazeb2.com/`;
+            setB2UrlPrefix(s3Prefix);
+            localStorage.setItem('b2UrlPrefix', s3Prefix);
+            setPrefixWarning(`Friendly URL detected and auto-corrected to the required S3 URL format.`);
+        } else {
+            localStorage.setItem('b2UrlPrefix', newPrefix);
+            setPrefixWarning(`Warning: This looks like a Friendly URL with an unknown region code. Please use the S3 URL from your bucket settings.`);
+        }
+    } else {
+        localStorage.setItem('b2UrlPrefix', newPrefix);
+        setPrefixWarning(null);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -236,10 +268,12 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
 
         const isFree = original.isFree?.toLowerCase() === 'true';
         const videoUrl = `${urlPrefix}${encodeB2Filename(original.filename)}`;
-        const thumbnailFilename = original.thumbnail_filename
-          ? original.thumbnail_filename
-          : original.filename.substring(0, original.filename.lastIndexOf('.')) + '.jpg';
+
+        // New robust thumbnail URL logic
+        const videoFilenameWithoutExt = original.filename.substring(0, original.filename.lastIndexOf('.'));
+        const thumbnailFilename = `thumbnails/${videoFilenameWithoutExt}.jpg`;
         const thumbnailUrl = `${urlPrefix}${encodeB2Filename(thumbnailFilename)}`;
+
 
         const videoDoc: Omit<VideoFile, 'id'> = {
           url: videoUrl,
@@ -380,8 +414,11 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
             value={b2UrlPrefix}
             onChange={handlePrefixChange}
           />
+          {prefixWarning && (
+            <p className="text-xs text-yellow-400 mt-1 p-2 bg-yellow-900/30 border border-yellow-500/30 rounded-md">{prefixWarning}</p>
+          )}
            <p className="text-xs text-gray-400 mt-1">
-            <strong>Important:</strong> In your B2 bucket details, copy the <strong>S3 URL</strong>, not the Friendly URL.
+            <strong>Important:</strong> In your B2 bucket details, copy the <strong>S3 URL</strong>, not the Friendly URL. The system will attempt to auto-correct it for you.
           </p>
         </div>
         <div>
