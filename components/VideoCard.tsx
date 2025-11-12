@@ -17,27 +17,23 @@ interface VideoCardProps {
 export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart, isPurchased, onThumbnailGenerated, isAdmin }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
+  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<number | null>(null);
   const hasGeneratedThumbnail = useRef(false);
-  // A more reliable way to detect touch capabilities vs user-agent sniffing.
   const isTouchDevice = useRef(typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
 
-  // We only need to generate a thumbnail if one doesn't already exist in the state.
-  // By removing the touch device check, this is now enabled for mobile.
-  const needsThumbnailGeneration = !video.generatedThumbnail;
-  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(needsThumbnailGeneration);
-
   const correctedThumbnailUrl = useMemo(() => {
-    // The generatedThumbnail is a data URL and doesn't need correction.
-    // Only correct the thumbnail from storage if it's a real URL.
     if (video.thumbnail && !video.thumbnail.startsWith('data:')) {
       return correctUrlForBackblaze(video.thumbnail);
     }
     return video.thumbnail;
   }, [video.thumbnail]);
+
+  // The final source for the image tag. Prioritize the permanent generated thumbnail, then the remote URL.
+  const displayThumbnailSrc = video.generatedThumbnail || correctedThumbnailUrl;
 
   // Lazy-load video when it comes into view
   useEffect(() => {
@@ -90,7 +86,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
   useEffect(() => {
     if (isHovering && videoRef.current) {
       videoRef.current.play().catch(error => {
-        // This is expected on some browsers, so we can log it quietly.
         console.warn("Autoplay was prevented:", error.message);
       });
     } else if (videoRef.current) {
@@ -108,22 +103,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
     };
   }, []);
 
-  // Thumbnail generation logic, runs when video data is loaded
+  // This function runs when the video element has loaded enough data to capture a frame.
+  // It's triggered only when `isGeneratingThumbnail` is true.
   const handleDataLoaded = () => {
     const videoElement = videoRef.current;
     
-    if (needsThumbnailGeneration && videoElement && !hasGeneratedThumbnail.current) {
-      hasGeneratedThumbnail.current = true;
-
-      // Set a timeout to prevent the spinner from getting stuck on mobile devices
-      // if the video fails to seek and the 'seeked' event never fires.
-      const generationTimeout = setTimeout(() => {
-        console.warn(`Thumbnail generation for ${video.id} timed out.`);
-        setIsGeneratingThumbnail(false);
-      }, 5000); // 5-second timeout
+    if (isGeneratingThumbnail && videoElement && !hasGeneratedThumbnail.current) {
+      hasGeneratedThumbnail.current = true; // Prevents re-running in the same session
 
       const captureFrame = () => {
-        clearTimeout(generationTimeout); // Success, so clear the timeout
         if (!videoElement) return;
         try {
           const canvas = document.createElement('canvas');
@@ -133,24 +121,32 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           if (ctx) {
             ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
             const dataUrl = canvas.toDataURL('image/jpeg');
-            // We no longer set the poster. We notify the parent, which will cause a re-render
-            // and update the <img> tag's src.
+            // Notify the parent component to save this thumbnail to the database.
             onThumbnailGenerated(dataUrl);
           }
         } catch (error) {
           console.error("Error generating thumbnail from video:", error);
         } finally {
+          // The generation attempt is complete. This will hide the spinner.
           setIsGeneratingThumbnail(false);
         }
       };
       
       videoElement.addEventListener('seeked', captureFrame, { once: true });
       videoElement.currentTime = 1; // Seek to the 1-second mark.
-    } else {
-      // If we don't need a thumbnail (e.g., it's already generated), just ensure the spinner is off.
-      setIsGeneratingThumbnail(false);
     }
   };
+
+  // This is the trigger for the self-healing process.
+  const handleThumbnailError = () => {
+    // If the primary thumbnail URL (from the CSV) fails AND we don't already have
+    // a generated one from the database, kick off the generation process.
+    if (!video.generatedThumbnail) {
+      console.warn(`Thumbnail for ${video.id} failed. Generating fallback.`);
+      setIsGeneratingThumbnail(true);
+    }
+  };
+
 
   const handleCartClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -175,15 +171,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
       <div className="relative flex-grow bg-black aspect-video">
         {/* Layer 1: Thumbnail Image (Always present, used as poster) */}
         <img
-          src={video.generatedThumbnail || correctedThumbnailUrl || ''}
+          src={displayThumbnailSrc || ''}
           alt={video.title}
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${isHovering ? 'opacity-0' : 'opacity-100'}`}
           referrerPolicy="no-referrer"
           loading="lazy"
-          onError={(e) => {
-            console.warn(`Failed to load thumbnail for video ${video.id}:`, correctedThumbnailUrl);
-            (e.target as HTMLImageElement).style.display = 'none'; // Hide broken image icon
-          }}
+          onError={handleThumbnailError}
         />
 
         {/* Layer 2: Video Player (Hidden by default, revealed on hover on desktop) */}
@@ -201,10 +194,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           />
         )}
         
-        {/* Layer 3: Loading Spinner (For initial load or thumbnail generation) */}
+        {/* Layer 3: Loading/Generating Spinner Overlay */}
         {(isGeneratingThumbnail || !resolvedSrc) && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/70 text-white p-2 text-center">
                 <Spinner className="w-8 h-8" />
+                {isGeneratingThumbnail && (
+                  <p className="mt-2 text-sm font-semibold">Generating thumbnail...</p>
+                )}
             </div>
         )}
         
