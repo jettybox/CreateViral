@@ -203,6 +203,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           <video
             ref={videoRef}
             src={resolvedSrc}
+            poster={displayThumbnailSrc || ''}
             onLoadedData={handleDataLoaded}
             className="absolute inset-0 w-full h-full object-cover"
             loop
