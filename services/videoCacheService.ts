@@ -56,9 +56,11 @@ async function manageCache() {
 /**
  * Retrieves a video from the cache or fetches it from the network if not cached.
  * Returns a Blob URL for the video resource.
+ * If the fetch/cache mechanism fails, it gracefully falls back to the original
+ * URL to ensure the video can still be played, albeit without caching benefits.
  *
- * @param {string} url The original URL of the video, which is expected to be correctly formatted.
- * @returns {Promise<string>} A promise that resolves to a Blob URL.
+ * @param {string} url The original URL of the video.
+ * @returns {Promise<string>} A promise that resolves to a Blob URL or the original URL on failure.
  */
 export async function getCachedVideoUrl(url: string): Promise<string> {
   if (!url) {
@@ -74,7 +76,14 @@ export async function getCachedVideoUrl(url: string): Promise<string> {
       return URL.createObjectURL(blob);
     }
 
-    const networkResponse = await fetch(url);
+    const networkResponse = await fetch(url, {
+      // It's crucial to align the referrer policy with how other assets (like images)
+      // are fetched. Some storage providers (like Backblaze B2) can be configured
+      // to block requests without a proper referrer (hotlink protection).
+      // By setting this to 'no-referrer', we ensure consistency and prevent
+      // the fetch from being blocked, which would bypass the caching mechanism.
+      referrerPolicy: 'no-referrer',
+    });
     
     if (!networkResponse.ok) {
       throw new Error(`Failed to fetch video: ${networkResponse.statusText}`);
