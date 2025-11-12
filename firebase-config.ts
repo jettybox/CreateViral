@@ -1,6 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, FirebaseApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
 import { getFirestore, Firestore } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+import { getStorage, FirebaseStorage } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-storage.js";
 
 // =================================================================================
 // --- ACTION REQUIRED: REPLACE WITH YOUR FIREBASE PROJECT CONFIGURATION ---
@@ -23,7 +24,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyA0UV9I-E0pDCR4azCXCp0I1hdlNqCV200",
   authDomain: "createviral-database.firebaseapp.com",
   projectId: "createviral-database",
-  storageBucket: "createviral-database.firebasestorage.app",
+  storageBucket: "createviral-database.appspot.com",
   messagingSenderId: "985465455751",
   appId: "1:985465455751:web:e636f383a9a343ce346422",
   measurementId: "G-WC24HZVF3D"
@@ -35,6 +36,7 @@ const firebaseConfig = {
 
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
 let firebaseInitError: string | null = null;
 
 try {
@@ -42,6 +44,8 @@ try {
   app = initializeApp(firebaseConfig);
   // Get a reference to the Firestore service
   db = getFirestore(app);
+  // Get a reference to the Storage service
+  storage = getStorage(app);
 } catch (e: any) {
   console.error("CRITICAL: Firebase initialization failed.", e);
   if (e.message.includes("apiKey")) {
@@ -51,4 +55,4 @@ try {
   }
 }
 
-export { app, db, firebaseInitError };
+export { app, db, storage, firebaseInitError };
