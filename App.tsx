@@ -287,11 +287,11 @@ export default function App() {
     }
   }, []);
 
-  const handleThumbnailGenerated = useCallback(async (videoId: string, dataUrl: string) => {
-    // Optimistically update the UI for instant feedback.
-    setVideos(prev => prev.map(v => v.id === videoId ? { ...v, generatedThumbnail: dataUrl } : v));
+  const handleThumbnailGenerated = useCallback(async (videoId: string, downloadUrl: string) => {
+    // Optimistically update the UI with the new, permanent URL for instant feedback.
+    setVideos(prev => prev.map(v => v.id === videoId ? { ...v, generatedThumbnail: downloadUrl } : v));
 
-    // Persist the generated thumbnail to the database to prevent re-generating it on next load.
+    // Persist the generated thumbnail URL to the database to prevent re-generating it on next load.
     if (!db) {
       console.error("Database not available, cannot save generated thumbnail.");
       return;
@@ -301,7 +301,7 @@ export default function App() {
     try {
       // This is a "fire and forget" operation. We don't block the UI for it,
       // and the optimistic update has already happened.
-      await updateDoc(videoRef, { generatedThumbnail: dataUrl });
+      await updateDoc(videoRef, { generatedThumbnail: downloadUrl });
     } catch (error) {
       console.error("Failed to save generated thumbnail to Firestore:", error);
       // Optional: Could add logic here to revert the optimistic UI update if persistence fails.
