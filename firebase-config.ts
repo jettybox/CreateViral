@@ -34,25 +34,33 @@ const firebaseConfig = {
 // =================================================================================
 
 
-let app: FirebaseApp | null = null;
-let db: Firestore | null = null;
-let storage: FirebaseStorage | null = null;
-let firebaseInitError: string | null = null;
-
-try {
-  // Initialize Firebase
-  app = initializeApp(firebaseConfig);
-  // Get a reference to the Firestore service
-  db = getFirestore(app);
-  // Get a reference to the Storage service
-  storage = getStorage(app);
-} catch (e: any) {
-  console.error("CRITICAL: Firebase initialization failed.", e);
-  if (e.message.includes("apiKey")) {
-    firebaseInitError = "Firebase initialization failed: The API Key is missing or invalid. Please ensure you have copied the correct firebaseConfig from your project settings into `firebase-config.ts`."
-  } else {
-    firebaseInitError = e.message || "An unknown error occurred during Firebase initialization. Check the browser console for more details.";
+// Initialize services within a temporary object to handle potential errors.
+const services = (() => {
+  try {
+    const appInstance = initializeApp(firebaseConfig);
+    const dbInstance = getFirestore(appInstance);
+    const storageInstance = getStorage(appInstance);
+    return {
+      app: appInstance as FirebaseApp,
+      db: dbInstance as Firestore,
+      storage: storageInstance as FirebaseStorage,
+      error: null as string | null,
+    };
+  } catch (e: any) {
+    console.error("CRITICAL: Firebase initialization failed.", e);
+    let errorMsg: string;
+    if (e.message.includes("apiKey")) {
+      errorMsg = "Firebase initialization failed: The API Key is missing or invalid. Please ensure you have copied the correct firebaseConfig from your project settings into `firebase-config.ts`."
+    } else {
+      errorMsg = e.message || "An unknown error occurred during Firebase initialization. Check the browser console for more details.";
+    }
+    return { app: null, db: null, storage: null, error: errorMsg };
   }
-}
+})();
 
-export { app, db, storage, firebaseInitError };
+// Export each service as a named constant. This is a more robust pattern
+// for build tools and avoids issues with top-level `let` declarations.
+export const app = services.app;
+export const db = services.db;
+export const storage = services.storage;
+export const firebaseInitError = services.error;
