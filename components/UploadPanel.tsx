@@ -179,6 +179,45 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
     }
   };
 
+  const enhanceRow = async (index: number) => {
+      // 1. Set status to 'enhancing'
+      setParsedRows(current => current.map((r, idx) => index === idx ? { ...r, status: 'enhancing', errorMessage: undefined } : r));
+      
+      const rowToProcess = parsedRows[index];
+      const title = rowToProcess.original.title || rowToProcess.original.filename || '';
+      const keywords = rowToProcess.original.keywords ? rowToProcess.original.keywords.split(/[,;]/).map(kw => kw.trim()).filter(Boolean) : [];
+      if (!title) throw new Error("Missing 'title' or 'filename'.");
+
+      let enhancedData;
+      const maxRetries = 3;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          enhancedData = await enhanceVideoMetadata({ title, keywords });
+          break; // Success
+        } catch (error: any) {
+          const errorMessage = error.message || '';
+          // Fail fast on un-retryable errors like safety blocks to save time.
+          if (errorMessage.includes('SAFETY') || errorMessage.includes('RECITATION')) {
+              throw error; // This will be caught by the outer catch block.
+          }
+          if (attempt === maxRetries) throw error; // Final attempt failed, re-throw
+          
+          const delay = 2000 * Math.pow(2, attempt - 1) + Math.random() * 1000;
+          // 2. Set status to 'retrying'
+          setParsedRows(current => current.map((r, idx) => index === idx ? { ...r, status: 'retrying', errorMessage: `Retry ${attempt}/${maxRetries}` } : r));
+          await new Promise(resolve => setTimeout(resolve, delay));
+          // 3. Set status back to 'enhancing' for next attempt
+          setParsedRows(current => current.map((r, idx) => index === idx ? { ...r, status: 'enhancing', errorMessage: undefined } : r));
+        }
+      }
+
+      if (!enhancedData) throw new Error("Enhancement failed after all retries.");
+      
+      // 4. Set status to 'enhanced' on success
+      setParsedRows(current => current.map((r, idx) => index === idx ? { ...r, status: 'enhanced', enhanced: enhancedData } : r));
+  };
+
+
   const handleEnhance = async () => {
     setStatus('enhancing');
     const itemsToProcess = parsedRows
@@ -186,7 +225,6 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
       .filter(i => parsedRows[i].status !== 'enhanced');
     setProgress({ current: parsedRows.length - itemsToProcess.length, total: parsedRows.length });
     
-    // Reduced concurrency to 2 to avoid overwhelming the API with requests.
     const CONCURRENT_LIMIT = 2;
     const queue = [...itemsToProcess];
   
@@ -195,40 +233,8 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
         const i = queue.shift();
         if (i === undefined) return;
   
-        // 1. Set status to 'enhancing'
-        setParsedRows(current => current.map((r, idx) => i === idx ? { ...r, status: 'enhancing', errorMessage: undefined } : r));
-  
         try {
-          const rowToProcess = parsedRows[i];
-          const title = rowToProcess.original.title || rowToProcess.original.filename || '';
-          const keywords = rowToProcess.original.keywords ? rowToProcess.original.keywords.split(/[,;]/).map(kw => kw.trim()).filter(Boolean) : [];
-  
-          if (!title) throw new Error("Missing 'title' or 'filename'.");
-  
-          let enhancedData;
-          const maxRetries = 3;
-          for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-              enhancedData = await enhanceVideoMetadata({ title, keywords });
-              break; // Success
-            } catch (error) {
-              if (attempt === maxRetries) throw error; // Final attempt failed, re-throw
-              
-              // Increased delay with more backoff to handle rate limiting more gracefully.
-              const delay = 2000 * Math.pow(2, attempt - 1) + Math.random() * 1000;
-              // 2. Set status to 'retrying'
-              setParsedRows(current => current.map((r, idx) => i === idx ? { ...r, status: 'retrying', errorMessage: `Retry ${attempt}/${maxRetries}` } : r));
-              await new Promise(resolve => setTimeout(resolve, delay));
-              // 3. Set status back to 'enhancing' for next attempt
-              setParsedRows(current => current.map((r, idx) => i === idx ? { ...r, status: 'enhancing', errorMessage: undefined } : r));
-            }
-          }
-  
-          if (!enhancedData) throw new Error("Enhancement failed after all retries.");
-          
-          // 4. Set status to 'enhanced' on success
-          setParsedRows(current => current.map((r, idx) => i === idx ? { ...r, status: 'enhanced', enhanced: enhancedData } : r));
-        
+          await enhanceRow(i);
         } catch (error: any) {
           // 5. Set status to 'error' on final failure
           setParsedRows(current => current.map((r, idx) => i === idx ? { ...r, status: 'error', errorMessage: error.message || "Unknown error" } : r));
@@ -245,34 +251,8 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
   };
   
   const handleRetryEnhance = async (index: number) => {
-    // Set status to 'enhancing' for the specific row
-    setParsedRows(current => current.map((r, idx) => index === idx ? { ...r, status: 'enhancing', errorMessage: undefined } : r));
-
     try {
-      const rowToProcess = parsedRows[index];
-      const title = rowToProcess.original.title || rowToProcess.original.filename || '';
-      const keywords = rowToProcess.original.keywords ? rowToProcess.original.keywords.split(/[,;]/).map(kw => kw.trim()).filter(Boolean) : [];
-      if (!title) throw new Error("Missing 'title' or 'filename'.");
-
-      let enhancedData;
-      const maxRetries = 3;
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          try {
-              enhancedData = await enhanceVideoMetadata({ title, keywords });
-              break;
-          } catch (error) {
-              if (attempt === maxRetries) throw error;
-              // Increased delay with more backoff to handle rate limiting more gracefully.
-              const delay = 2000 * Math.pow(2, attempt - 1) + Math.random() * 1000;
-              setParsedRows(current => current.map((r, idx) => index === idx ? { ...r, status: 'retrying', errorMessage: `Retry ${attempt}/${maxRetries}` } : r));
-              await new Promise(resolve => setTimeout(resolve, delay));
-              setParsedRows(current => current.map((r, idx) => index === idx ? { ...r, status: 'enhancing', errorMessage: undefined } : r));
-          }
-      }
-      
-      if (!enhancedData) throw new Error("Enhancement failed after all retries.");
-
-      setParsedRows(current => current.map((r, idx) => index === idx ? { ...r, status: 'enhanced', enhanced: enhancedData } : r));
+      await enhanceRow(index);
     } catch (error: any) {
       setParsedRows(current => current.map((r, idx) => index === idx ? { ...r, status: 'error', errorMessage: error.message || "Unknown error" } : r));
     }
