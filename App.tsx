@@ -73,6 +73,7 @@ export default function App() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isVerifyingPurchase, setIsVerifyingPurchase] = useState(false);
   const isAdmin = useAdminMode();
+  const debounceTimeout = useRef<number | null>(null);
 
   // Effect to initialize Firebase and fetch data.
   useEffect(() => {
@@ -205,18 +206,36 @@ export default function App() {
     }
   }, [downloadedVideoIds]);
 
-  const handleSearch = useCallback(async (query: string) => {
+  // Updates search term on input, but debounces the actual API call.
+  const handleSearch = useCallback((query: string) => {
     setSearchTerm(query);
     setPagesLoaded(1);
-    if (query.length > 2) {
+  }, []);
+
+  // Effect to handle debounced AI search enhancement.
+  useEffect(() => {
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+
+    if (searchTerm.length > 2) {
       setIsSearching(true);
-      const terms = await getEnhancedSearchTerms(query);
-      setEnhancedSearchTerms(terms);
-      setIsSearching(false);
+      debounceTimeout.current = window.setTimeout(async () => {
+        const terms = await getEnhancedSearchTerms(searchTerm);
+        setEnhancedSearchTerms(terms);
+        setIsSearching(false);
+      }, 500); // 500ms debounce delay
     } else {
       setEnhancedSearchTerms([]);
+      setIsSearching(false);
     }
-  }, []);
+
+    return () => {
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+    };
+  }, [searchTerm]);
 
   const filteredAndSortedVideos = useMemo(() => {
     let filtered = videos;
