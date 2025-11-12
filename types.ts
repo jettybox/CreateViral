@@ -13,5 +13,4 @@ export interface VideoFile {
   isFeatured: boolean;     // Manually set by the admin
   isFree: boolean;         // Manually set by the admin
   createdAt: number;       // Timestamp for "Newest" sorting
-  generatedThumbnail?: string; // Base64 data URL for thumbnails generated on the fly
 }
