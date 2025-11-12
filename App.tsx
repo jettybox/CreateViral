@@ -334,9 +334,10 @@ export default function App() {
       const functions = getFunctions(app);
       const createCheckoutSession = httpsCallable(functions, 'createCheckoutSession');
       
+      // The payload is now simplified to only send the video ID.
+      // The backend is the single source of truth for price, title, and thumbnail.
       const cartPayload = currentCartItems.map(item => ({
         id: item.id,
-        generatedThumbnail: item.generatedThumbnail || null,
       }));
 
       const { data } = await createCheckoutSession({ cartItems: cartPayload });
