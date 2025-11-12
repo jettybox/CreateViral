@@ -2,9 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { VideoFile } from '../types';
 import { PlayIcon, CartIcon, CheckIcon, DownloadIcon } from './Icons';
 import { Spinner } from './Spinner';
-import { getCachedVideoUrl, correctUrlForBackblaze } from '../services/videoCacheService';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-storage.js';
-import { storage } from '../firebase-config';
+import { getCachedVideoUrl } from '../services/videoCacheService';
 
 interface VideoCardProps {
   video: VideoFile;
@@ -12,30 +10,17 @@ interface VideoCardProps {
   onAddToCart: () => void;
   isInCart: boolean;
   isPurchased: boolean;
-  onThumbnailGenerated: (downloadUrl: string) => void;
   isAdmin: boolean;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart, isPurchased, onThumbnailGenerated, isAdmin }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart, isPurchased, isAdmin }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
-  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<number | null>(null);
-  const hasGeneratedThumbnail = useRef(false);
   const isTouchDevice = useRef(typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
-
-  const correctedThumbnailUrl = useMemo(() => {
-    if (video.thumbnail && !video.thumbnail.startsWith('data:')) {
-      return correctUrlForBackblaze(video.thumbnail);
-    }
-    return video.thumbnail;
-  }, [video.thumbnail]);
-
-  // The final source for the image tag. Prioritize the permanent generated thumbnail, then the remote URL.
-  const displayThumbnailSrc = video.generatedThumbnail || correctedThumbnailUrl;
 
   // Lazy-load video when it comes into view
   useEffect(() => {
@@ -117,68 +102,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
     };
   }, []);
 
-  // This function captures a video frame, uploads it to Firebase Storage,
-  // and returns the public URL.
-  const handleDataLoaded = () => {
-    const videoElement = videoRef.current;
-    
-    if (isGeneratingThumbnail && videoElement && !hasGeneratedThumbnail.current && storage) {
-      hasGeneratedThumbnail.current = true; // Prevents re-running in the same session
-
-      const captureAndUploadFrame = () => {
-        if (!videoElement) return;
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = videoElement.videoWidth;
-          canvas.height = videoElement.videoHeight;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-            canvas.toBlob(async (blob) => {
-              if (blob) {
-                try {
-                  const storageRef = ref(storage, `generated-thumbnails/${video.id}.jpg`);
-                  await uploadBytes(storageRef, blob);
-                  const downloadUrl = await getDownloadURL(storageRef);
-                  // Notify parent with the permanent public URL.
-                  onThumbnailGenerated(downloadUrl);
-                } catch (uploadError) {
-                   console.error("Error uploading generated thumbnail:", uploadError);
-                } finally {
-                   setIsGeneratingThumbnail(false);
-                }
-              } else {
-                 setIsGeneratingThumbnail(false);
-              }
-            }, 'image/jpeg', 0.9);
-          } else {
-            setIsGeneratingThumbnail(false);
-          }
-        } catch (error) {
-          console.error("Error generating thumbnail blob from video:", error);
-          setIsGeneratingThumbnail(false);
-        }
-      };
-      
-      videoElement.addEventListener('seeked', captureAndUploadFrame, { once: true });
-      videoElement.currentTime = 1; // Seek to the 1-second mark for a better frame.
-    } else if (!storage) {
-        console.warn("Firebase Storage not available, cannot upload generated thumbnail.");
-        setIsGeneratingThumbnail(false);
-    }
-  };
-
-  // This is the trigger for the self-healing process.
-  const handleThumbnailError = () => {
-    // If the primary thumbnail URL (from the CSV) fails AND we don't already have
-    // a generated one from the database, kick off the generation process.
-    if (!video.generatedThumbnail) {
-      console.warn(`Thumbnail for ${video.id} failed. Generating fallback.`);
-      setIsGeneratingThumbnail(true);
-    }
-  };
-
-
   const handleCartClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isInCart && !isPurchased) {
@@ -202,12 +125,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
       <div className="relative flex-grow bg-black aspect-video">
         {/* Layer 1: Thumbnail Image (Always present, used as poster) */}
         <img
-          src={displayThumbnailSrc || ''}
+          src={video.thumbnail || ''}
           alt={video.title}
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${isHovering ? 'opacity-0' : 'opacity-100'}`}
           referrerPolicy="no-referrer"
           loading="lazy"
-          onError={handleThumbnailError}
         />
 
         {/* Layer 2: Video Player (Hidden by default, revealed on hover on desktop) */}
@@ -215,24 +137,19 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           <video
             ref={videoRef}
             src={resolvedSrc}
-            poster={displayThumbnailSrc || ''}
-            onLoadedData={handleDataLoaded}
+            poster={video.thumbnail || ''}
             className="absolute inset-0 w-full h-full object-cover"
             loop
             muted
             playsInline
             preload="metadata"
-            crossOrigin="anonymous" // Required for drawing remote video to canvas
           />
         )}
         
-        {/* Layer 3: Loading/Generating Spinner Overlay */}
-        {(isGeneratingThumbnail || !resolvedSrc) && (
+        {/* Layer 3: Loading Spinner Overlay */}
+        {!resolvedSrc && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/70 text-white p-2 text-center">
                 <Spinner className="w-8 h-8" />
-                {isGeneratingThumbnail && (
-                  <p className="mt-2 text-sm font-semibold">Generating thumbnail...</p>
-                )}
             </div>
         )}
         
@@ -240,12 +157,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
         <div className="absolute inset-0 bg-black bg-opacity-40 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center">
            <PlayIcon className={`w-12 h-12 text-white/80 transform transition-all duration-300 pointer-events-none ${isHovering ? 'opacity-0 scale-75' : 'opacity-100 group-hover:scale-110'}`} />
         </div>
-         {video.isFree && (
-            <div className="absolute top-2 left-2 bg-yellow-400 text-gray-900 text-xs font-bold px-2 py-1 rounded-full shadow-lg z-10">
-                FREE
-            </div>
-        )}
-        <div className={`absolute top-2 right-2 bg-gray-900/70 text-sm font-bold px-3 py-1 rounded-full shadow-lg ${video.isFree ? 'text-white' : 'text-green-400'}`}>
+        <div className={`absolute top-2 right-2 text-sm font-bold px-3 py-1 rounded-full shadow-lg ${
+            video.isFree 
+            ? 'bg-yellow-400 text-gray-900' 
+            : 'bg-gray-900/70 text-green-400'
+        }`}>
           {video.isFree ? 'Free' : `$${video.price.toFixed(2)}`}
         </div>
         <button
