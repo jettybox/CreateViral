@@ -227,14 +227,28 @@ export default function App() {
     }
 
     if (searchTerm.length > 0) {
-      const searchTerms = [searchTerm, ...enhancedSearchTerms].map(t => t.toLowerCase());
-      filtered = filtered.filter(v => 
-        searchTerms.some(term => 
-          v.title.toLowerCase().includes(term) ||
-          v.keywords.some(kw => kw.toLowerCase().includes(term)) ||
-          v.categories.some(cat => cat.toLowerCase().includes(term))
-        )
-      );
+      // The phrases to test are the user's original query plus the AI-enhanced phrases.
+      const phrasesToTest = [searchTerm, ...enhancedSearchTerms];
+
+      filtered = filtered.filter(v => {
+        // For each video, create a searchable string of its title and keywords.
+        // Categories are excluded to improve search precision.
+        const searchableText = [
+          v.title,
+          ...v.keywords
+        ].join(' ').toLowerCase();
+
+        // A video is a match if it satisfies the "AND" condition for *at least one* of the phrases.
+        return phrasesToTest.some(phrase => {
+          // For each phrase, split it into individual words.
+          const wordsInPhrase = phrase.toLowerCase().split(/\s+/).filter(Boolean);
+          if (wordsInPhrase.length === 0) {
+            return false; // Skip empty phrases.
+          }
+          // The video is a match for this phrase if it contains *all* the words from it.
+          return wordsInPhrase.every(word => searchableText.includes(word));
+        });
+      });
     }
     
     switch (sortBy) {
