@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { VideoFile } from '../types';
 import { CATEGORIES } from '../constants';
-import { XIcon, TagIcon, InfoIcon, CategoryIcon, EditIcon, CartIcon, CheckIcon, StarIcon, TrashIcon } from './Icons';
+import { XIcon, TagIcon, InfoIcon, CategoryIcon, EditIcon, CartIcon, CheckIcon, StarIcon, TrashIcon, WarningIcon } from './Icons';
 import { getCachedVideoUrl } from '../services/videoCacheService';
 import { Spinner } from './Spinner';
 
@@ -25,11 +25,13 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
   const [keywordsInput, setKeywordsInput] = useState('');
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
+  const [videoError, setVideoError] = useState(false);
 
   useEffect(() => {
     setEditableVideo(video);
     setKeywordsInput(video.keywords.join(', '));
     setIsEditing(false);
+    setVideoError(false); // Reset error state on new video
     
     setIsVideoLoading(true);
     let objectUrl: string | null = null;
@@ -38,7 +40,8 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
     getCachedVideoUrl(video.url).then((url) => {
       objectUrl = url;
       setResolvedSrc(url);
-      setIsVideoLoading(false);
+      // We don't set loading to false here; we wait for the video element's
+      // `onLoadedData` or `onError` event to fire.
     });
 
     // Cleanup function to revoke the object URL on component unmount or video change
@@ -57,6 +60,17 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
     
     onVideoUpdate(videoToSave);
     setIsEditing(false);
+  };
+  
+  const handleVideoError = () => {
+    console.error("Failed to load video:", resolvedSrc);
+    setVideoError(true);
+    setIsVideoLoading(false);
+  };
+
+  const handleVideoLoaded = () => {
+    setIsVideoLoading(false);
+    setVideoError(false);
   };
 
   const handleCancel = () => {
@@ -77,7 +91,9 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
     } else {
         setEditableVideo(prev => ({
           ...prev,
-          [name]: name === 'price' ? parseFloat(value) || 0 : value,
+          [name]: name === 'price' ? parseFloat(value) || 0 :
+                  name === 'commercialAppeal' ? parseInt(value, 10) || 0 :
+                  value,
         }));
     }
   };
@@ -105,12 +121,38 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
           </button>
         </div>
         <div className="flex flex-col lg:flex-row flex-grow overflow-hidden">
-          <div className="w-full lg:w-2/3 bg-black flex items-center justify-center">
-             {isVideoLoading || !resolvedSrc ? (
-              <Spinner className="w-12 h-12" />
-            ) : (
-              <video src={resolvedSrc} controls playsInline className="w-full h-full object-contain" controlsList="nodownload" />
-            )}
+          <div className="w-full lg:w-2/3 bg-black flex items-center justify-center relative">
+             {(isVideoLoading || videoError) && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+                    {videoError ? (
+                        <div className="text-center text-white">
+                            <WarningIcon className="w-12 h-12 text-red-500 mx-auto" />
+                            <h3 className="mt-4 text-lg font-bold">Video Not Found</h3>
+                            <p className="mt-2 text-sm text-gray-400">
+                                The video file could not be loaded. This usually means the URL is incorrect or the file is missing from the storage bucket.
+                            </p>
+                            {isAdmin && (
+                                <p className="mt-4 text-xs bg-gray-700 p-2 rounded-md">
+                                    <strong>Admin Tip:</strong> Check that the video URL in Firestore matches the exact path in your Backblaze B2 bucket.
+                                </p>
+                            )}
+                        </div>
+                    ) : (
+                        <Spinner className="w-12 h-12" />
+                    )}
+                </div>
+             )}
+              {resolvedSrc && !videoError && (
+                 <video 
+                    src={resolvedSrc} 
+                    controls 
+                    playsInline 
+                    className={`w-full h-full object-contain transition-opacity duration-300 ${isVideoLoading ? 'opacity-0' : 'opacity-100'}`} 
+                    controlsList="nodownload" 
+                    onLoadedData={handleVideoLoaded}
+                    onError={handleVideoError}
+                 />
+              )}
           </div>
           <div className="w-full lg:w-1/3 p-6 flex flex-col bg-gray-800/50 overflow-hidden">
             <div className="flex-grow overflow-y-auto pr-2 space-y-4">
@@ -151,6 +193,10 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
                    <div>
                     <label htmlFor="price" className={formLabelClass}>Price ($)</label>
                     <input type="number" id="price" name="price" value={editableVideo.price} onChange={handleInputChange} className={formInputClass} min="0" step="0.01" disabled={editableVideo.isFree} />
+                  </div>
+                  <div>
+                    <label htmlFor="commercialAppeal" className={formLabelClass}>Commercial Appeal (1-100)</label>
+                    <input type="number" id="commercialAppeal" name="commercialAppeal" value={editableVideo.commercialAppeal} onChange={handleInputChange} className={formInputClass} min="1" max="100" />
                   </div>
                   <div>
                     <label htmlFor="description" className={formLabelClass}>Description</label>
