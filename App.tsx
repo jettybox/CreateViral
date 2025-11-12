@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { collection, onSnapshot, doc, deleteDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
-import { getStorage, ref, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-storage.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js';
 import { db, app, firebaseInitError } from './firebase-config';
 import { Header } from './components/Header';
@@ -11,7 +10,6 @@ import { CartPanel } from './components/CartPanel';
 import { PurchasesPanel } from './components/PurchasesPanel';
 import { UploadPanel } from './components/UploadPanel';
 import { SortDropdown, SortOption } from './components/SortDropdown';
-import { Pagination } from './components/Pagination';
 import type { VideoFile } from './types';
 import { CATEGORIES } from './constants';
 import { FilmIcon, WarningIcon } from './components/Icons';
@@ -23,7 +21,7 @@ import { DiscountBanner } from './components/DiscountBanner';
 import { AboutModal } from './components/AboutModal';
 import { LicenseModal } from './components/LicenseModal';
 
-const VIDEOS_PER_PAGE = 24;
+const VIDEOS_PER_PAGE = 20;
 
 export default function App() {
   const [videos, setVideos] = useState<VideoFile[]>([]);
@@ -34,7 +32,7 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortBy, setSortBy] = useState<SortOption>('featured');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [pagesLoaded, setPagesLoaded] = useState(1);
   const [selectedVideo, setSelectedVideo] = useState<VideoFile | null>(null);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
@@ -192,7 +190,7 @@ export default function App() {
 
   const handleSearch = useCallback(async (query: string) => {
     setSearchTerm(query);
-    setCurrentPage(1);
+    setPagesLoaded(1);
     if (query.length > 2) {
       setIsSearching(true);
       const terms = await getEnhancedSearchTerms(query);
@@ -238,11 +236,11 @@ export default function App() {
     }
   }, [videos, selectedCategory, searchTerm, enhancedSearchTerms, sortBy]);
 
-  const totalPages = Math.ceil(filteredAndSortedVideos.length / VIDEOS_PER_PAGE);
-  const paginatedVideos = useMemo(() => {
-    const startIndex = (currentPage - 1) * VIDEOS_PER_PAGE;
-    return filteredAndSortedVideos.slice(startIndex, startIndex + VIDEOS_PER_PAGE);
-  }, [filteredAndSortedVideos, currentPage]);
+  const visibleVideos = useMemo(() => {
+    return filteredAndSortedVideos.slice(0, pagesLoaded * VIDEOS_PER_PAGE);
+  }, [filteredAndSortedVideos, pagesLoaded]);
+  
+  const hasMoreVideos = visibleVideos.length < filteredAndSortedVideos.length;
   
   const cartItems = useMemo(() => videos.filter(v => cart.includes(v.id)), [videos, cart]);
   const purchasedItems = useMemo(() => {
@@ -290,30 +288,25 @@ export default function App() {
   }, []);
 
   const handleThumbnailGenerated = useCallback(async (videoId: string, dataUrl: string) => {
-      // Optimistically update local state for immediate UI feedback.
-      setVideos(prev => prev.map(v => v.id === videoId ? { ...v, generatedThumbnail: dataUrl } : v));
+    // Optimistically update the UI for instant feedback.
+    setVideos(prev => prev.map(v => v.id === videoId ? { ...v, generatedThumbnail: dataUrl } : v));
 
-      // Asynchronously upload the thumbnail and update Firestore.
-      // This fixes the underlying data issue for future checkouts.
-      if (!app || !db) return;
-      try {
-        const storage = getStorage(app);
-        // Use a consistent path for thumbnails, e.g., 'thumbnails/{videoId}.jpg'
-        const storageRef = ref(storage, `thumbnails/${videoId}.jpg`);
-
-        // Upload the data URL string directly. It handles Base64 decoding.
-        const snapshot = await uploadString(storageRef, dataUrl, 'data_url');
-        const downloadURL = await getDownloadURL(snapshot.ref);
-
-        // Update the 'thumbnail' field in the corresponding Firestore document.
-        const videoRef = doc(db, 'videos', videoId);
-        await updateDoc(videoRef, { thumbnail: downloadURL });
-        console.log(`Successfully generated and saved thumbnail for video ${videoId}.`);
-      } catch (error) {
-        console.error("Failed to upload and save generated thumbnail:", error);
-        // The UI is already updated, so we just log the error without alerting the user.
-      }
-  }, [app, db]);
+    // Persist the generated thumbnail to the database to prevent re-generating it on next load.
+    if (!db) {
+      console.error("Database not available, cannot save generated thumbnail.");
+      return;
+    }
+    
+    const videoRef = doc(db, 'videos', videoId);
+    try {
+      // This is a "fire and forget" operation. We don't block the UI for it,
+      // and the optimistic update has already happened.
+      await updateDoc(videoRef, { generatedThumbnail: dataUrl });
+    } catch (error) {
+      console.error("Failed to save generated thumbnail to Firestore:", error);
+      // Optional: Could add logic here to revert the optimistic UI update if persistence fails.
+    }
+  }, []);
 
   const handleCheckout = useCallback(async () => {
     setIsCheckingOut(true);
@@ -395,9 +388,9 @@ export default function App() {
           <CategoryFilter
             categories={['All', 'Free', ...CATEGORIES]}
             selectedCategory={selectedCategory}
-            onSelectCategory={(cat) => { setSelectedCategory(cat); setCurrentPage(1); }}
+            onSelectCategory={(cat) => { setSelectedCategory(cat); setPagesLoaded(1); }}
           />
-          <SortDropdown selected={sortBy} onSelect={(opt) => { setSortBy(opt); setCurrentPage(1); }} />
+          <SortDropdown selected={sortBy} onSelect={(opt) => { setSortBy(opt); setPagesLoaded(1); }} />
         </div>
 
         {isLoading && <div className="text-center py-20"><Spinner className="w-12 h-12" /></div>}
@@ -410,7 +403,7 @@ export default function App() {
           </div>
         )}
 
-        {!isLoading && !connectionError && paginatedVideos.length === 0 && (
+        {!isLoading && !connectionError && visibleVideos.length === 0 && (
           <div className="text-center py-20 bg-gray-800/50 rounded-lg p-8">
             <FilmIcon className="w-12 h-12 text-gray-500 mx-auto" />
             <h2 className="mt-4 text-2xl font-bold text-gray-400">No Videos Found</h2>
@@ -418,10 +411,10 @@ export default function App() {
           </div>
         )}
 
-        {!isLoading && !connectionError && paginatedVideos.length > 0 && (
+        {!isLoading && !connectionError && visibleVideos.length > 0 && (
           <>
             <VideoGrid
-              videos={paginatedVideos}
+              videos={visibleVideos}
               onVideoSelect={setSelectedVideo}
               onAddToCart={handleAddToCart}
               cart={cart}
@@ -429,11 +422,16 @@ export default function App() {
               onThumbnailGenerated={handleThumbnailGenerated}
               isAdmin={isAdmin}
             />
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-            />
+            {hasMoreVideos && (
+              <div className="text-center mt-12">
+                <button
+                  onClick={() => setPagesLoaded(prev => prev + 1)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                >
+                  View More
+                </button>
+              </div>
+            )}
           </>
         )}
       </main>
