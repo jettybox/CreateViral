@@ -299,8 +299,8 @@ export default function App() {
     
     const videoRef = doc(db, 'videos', videoId);
     try {
-      // This is a "fire and forget" operation. We don't block the UI for it,
-      // and the optimistic update has already happened.
+      // We await this operation to reduce the chance of a race condition where
+      // the user checks out before the new thumbnail URL is saved to the database.
       await updateDoc(videoRef, { generatedThumbnail: downloadUrl });
     } catch (error) {
       console.error("Failed to save generated thumbnail to Firestore:", error);
@@ -334,10 +334,13 @@ export default function App() {
       const functions = getFunctions(app);
       const createCheckoutSession = httpsCallable(functions, 'createCheckoutSession');
       
-      // The payload is now simplified to only send the video ID.
-      // The backend is the single source of truth for price, title, and thumbnail.
+      // The backend is the source of truth for price/title, but we send the
+      // thumbnail from the client, as it may be more up-to-date than Firestore
+      // due to the optimistic update after on-the-fly generation.
       const cartPayload = currentCartItems.map(item => ({
         id: item.id,
+        // Send the best available thumbnail URL from the client's state.
+        thumbnailUrl: item.generatedThumbnail || item.thumbnail || '',
       }));
 
       const { data } = await createCheckoutSession({ cartItems: cartPayload });
