@@ -184,6 +184,13 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
     
     const newRows = [...parsedRows];
     for(let i = 0; i < newRows.length; i++) {
+      // Add a delay between API calls to avoid hitting rate limits.
+      // The Gemini free tier often has a limit of 60 requests per minute.
+      // A 1.1 second delay ensures we stay comfortably under this limit.
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 1100));
+      }
+
       try {
         const row = newRows[i];
         const title = row.original.title || row.original.filename || '';
