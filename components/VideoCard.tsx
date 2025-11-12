@@ -86,13 +86,25 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
   
   // Effect to play/pause video on hover, but only on non-touch devices
   useEffect(() => {
-    if (isHovering && videoRef.current) {
-      videoRef.current.play().catch(error => {
-        console.warn("Autoplay was prevented:", error.message);
-      });
-    } else if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
+    const videoElement = videoRef.current;
+    if (videoElement) {
+      if (isHovering) {
+        // Ensure playback starts from the beginning on each hover
+        videoElement.currentTime = 0;
+        const playPromise = videoElement.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            // This is a common browser policy, not a critical error.
+            console.warn("Autoplay was prevented:", error.message);
+          });
+        }
+      } else {
+        // When hover ends, pause the video and call load() to reset it.
+        // This forces the browser to display the poster image again,
+        // rather than the first frame of the video.
+        videoElement.pause();
+        videoElement.load();
+      }
     }
   }, [isHovering]);
   
