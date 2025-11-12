@@ -334,7 +334,12 @@ export default function App() {
       const functions = getFunctions(app);
       const createCheckoutSession = httpsCallable(functions, 'createCheckoutSession');
       
-      const { data } = await createCheckoutSession({ cartItems: cart });
+      const cartPayload = currentCartItems.map(item => ({
+        id: item.id,
+        generatedThumbnail: item.generatedThumbnail || null,
+      }));
+
+      const { data } = await createCheckoutSession({ cartItems: cartPayload });
       const { url: checkoutUrl, sessionId } = data as { url: string; sessionId: string };
 
       if (!checkoutUrl || !sessionId) {
