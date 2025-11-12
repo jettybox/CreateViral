@@ -39,7 +39,16 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isPurchasesOpen, setIsPurchasesOpen] = useState(false);
   const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
-  const [cart, setCart] = useState<string[]>([]); // Array of video IDs
+  const [cart, setCart] = useState<string[]>(() => {
+    // Initialize state from localStorage to persist across sessions.
+    try {
+      const saved = localStorage.getItem('cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Could not load cart from local storage", e);
+      return [];
+    }
+  });
   const [purchasedVideoIds, setPurchasedVideoIds] = useState<string[]>(() => {
     // Initialize state from localStorage to persist across sessions.
     try {
@@ -168,6 +177,15 @@ export default function App() {
     const cartItems = videos.filter(v => cart.includes(v.id));
     setProtectedUrls(cartItems.map(item => item.url));
   }, [cart, videos]);
+  
+  // Effect to persist the cart to localStorage.
+  useEffect(() => {
+    try {
+      localStorage.setItem('cart', JSON.stringify(cart));
+    } catch (e) {
+      console.error("Could not save cart to local storage", e);
+    }
+  }, [cart]);
 
   // Effect to persist the list of purchased video IDs to localStorage.
   useEffect(() => {
