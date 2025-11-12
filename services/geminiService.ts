@@ -3,6 +3,7 @@
 
 
 
+
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORIES } from '../constants';
 
@@ -108,10 +109,13 @@ export async function getEnhancedSearchTerms(query: string): Promise<string[]> {
     if (!aiClient) return [query];
 
     const prompt = `
-        You are a semantic search assistant for a stock video website. The user has entered a search query.
-        Your task is to generate a list of up to 10 related keywords, synonyms, and conceptually similar terms to broaden the search results.
+        You are a semantic search assistant for a stock video website. Your goal is to increase search accuracy by providing precise synonyms.
+        Generate a list of up to 5 direct synonyms or very closely related terms for the user's query.
+        Do NOT include broad categories (like 'technology' or 'vfx') unless they are part of the original query.
+        Focus on nouns and adjectives that describe the visual content.
         Include the original query in the list.
-        For example, if the query is "lady", you might return ["lady", "woman", "female", "person", "portrait", "lifestyle"].
+        For example, if the query is "robot", you should return terms like ["robot", "humanoid", "android", "cyborg", "automaton"].
+        For "car driving", return ["car driving", "automobile moving", "vehicle in motion"].
         Return the results as a JSON array of strings matching the schema.
         
         User's query: "${query}"
