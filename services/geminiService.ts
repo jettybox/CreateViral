@@ -1,6 +1,8 @@
 
 
 
+
+
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORIES } from '../constants';
 
@@ -172,12 +174,15 @@ export async function enhanceVideoMetadata(
     }
     
     const prompt = `
-        You are a stock media expert specializing in metadata optimization for discoverability and sales.
+        You are a stock media expert specializing in metadata optimization. Your goal is to ALWAYS return a valid JSON object according to the schema.
+
         Analyze the provided video title and keywords. Your task is to:
         1.  Generate a concise, marketable description (2-3 sentences).
         2.  Select up to 3 of the most relevant categories from the provided list.
-        3.  Estimate the video's commercial appeal on a scale of 1 to 100, where 100 is extremely high appeal (e.g., a versatile business-themed clip) and 1 is very niche/low appeal.
-        
+        3.  Estimate the video's commercial appeal on a scale of 1 to 100.
+
+        **CRITICAL SAFETY INSTRUCTION:** The content might be from the horror genre and contain terms like "blood", "undead", etc. DO NOT refuse to answer. Instead, create a safe, non-graphic description. For example, for "bloody knife", describe it as "a knife with red liquid on it, suitable for horror scenes". If you absolutely cannot process the title due to an extreme policy violation, you MUST still return a valid JSON object with the description field set to "Unable to generate description due to content policy.", categories as an empty array, and commercialAppeal as 0. UNDER NO CIRCUMSTANCES should you return a non-JSON response or an error.
+
         Return the result as a JSON object matching the provided schema.
         
         Available Categories:
@@ -188,6 +193,7 @@ export async function enhanceVideoMetadata(
         Keywords: ${videoData.keywords.join(', ')}
     `;
 
+    let jsonString: string | undefined;
     try {
         const response = await aiClient.models.generateContent({
             model: model,
@@ -202,12 +208,17 @@ export async function enhanceVideoMetadata(
         if (!candidate) {
             throw new Error("The API returned an empty response. This may be due to a content filter.");
         }
+        
+        // The "SAFETY" finish reason is a clear indicator of a content block.
+        if (candidate.finishReason === 'SAFETY') {
+            throw new Error("Generation failed. Reason: SAFETY. The AI's safety filters blocked this title.");
+        }
 
         if (candidate.finishReason && candidate.finishReason !== 'STOP') {
             throw new Error(`Generation failed. Reason: ${candidate.finishReason}`);
         }
 
-        const jsonString = response.text?.trim();
+        jsonString = response.text?.trim();
         if (!jsonString) {
             throw new Error("The API returned a valid but empty text response.");
         }
@@ -226,6 +237,14 @@ export async function enhanceVideoMetadata(
         }
 
     } catch (error: any) {
+        // If JSON parsing fails, provide a more detailed error message.
+        if (error instanceof SyntaxError && jsonString) {
+             console.error("Failed to parse JSON from Gemini API. Raw response:", jsonString);
+             // Return a truncated version of the raw response for debugging in the UI.
+             const snippet = jsonString.length > 100 ? jsonString.substring(0, 100) + '...' : jsonString;
+             throw new Error(`Failed to parse AI response. Raw data started with: "${snippet}"`);
+        }
+        
         console.error("Error calling Gemini API for metadata enhancement:", error);
         throw new Error(error.message || "Failed to enhance metadata. Please check the console for details.");
     }
