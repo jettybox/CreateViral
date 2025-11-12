@@ -1,5 +1,6 @@
 
 
+
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORIES } from '../constants';
 
@@ -197,7 +198,20 @@ export async function enhanceVideoMetadata(
             },
         });
 
-        const jsonString = response.text.trim();
+        const candidate = response.candidates?.[0];
+        if (!candidate) {
+            throw new Error("The API returned an empty response. This may be due to a content filter.");
+        }
+
+        if (candidate.finishReason && candidate.finishReason !== 'STOP') {
+            throw new Error(`Generation failed. Reason: ${candidate.finishReason}`);
+        }
+
+        const jsonString = response.text?.trim();
+        if (!jsonString) {
+            throw new Error("The API returned a valid but empty text response.");
+        }
+
         const parsedJson = JSON.parse(jsonString);
 
         // Basic validation of the returned object
@@ -211,8 +225,8 @@ export async function enhanceVideoMetadata(
             throw new Error("Gemini API returned an object with an unexpected structure.");
         }
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error calling Gemini API for metadata enhancement:", error);
-        throw new Error("Failed to enhance metadata. Please check the console for details.");
+        throw new Error(error.message || "Failed to enhance metadata. Please check the console for details.");
     }
 }
