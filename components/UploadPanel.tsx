@@ -181,9 +181,9 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
   const handleEnhance = async () => {
     setStatus('enhancing');
     setProgress({ current: 0, total: parsedRows.length });
-    
-    const newRows = [...parsedRows];
-    for(let i = 0; i < newRows.length; i++) {
+
+    // Use a standard for-loop to iterate with an index.
+    for (let i = 0; i < parsedRows.length; i++) {
       // Add a delay between API calls to avoid hitting rate limits.
       // The Gemini free tier often has a limit of 60 requests per minute.
       // A 1.1 second delay ensures we stay comfortably under this limit.
@@ -192,24 +192,44 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
       }
 
       try {
-        const row = newRows[i];
-        const title = row.original.title || row.original.filename || '';
-        const keywords = row.original.keywords ? row.original.keywords.split(/[,;]/).map(kw => kw.trim()).filter(Boolean) : [];
+        // Important: Access the row data from the original array for this iteration.
+        const rowToProcess = parsedRows[i];
+        const title = rowToProcess.original.title || rowToProcess.original.filename || '';
+        const keywords = rowToProcess.original.keywords ? rowToProcess.original.keywords.split(/[,;]/).map(kw => kw.trim()).filter(Boolean) : [];
 
         if (!title) {
             throw new Error("Missing 'title' or 'filename' for enhancement.");
         }
 
         const enhancedData = await enhanceVideoMetadata({ title, keywords });
-        newRows[i] = { ...row, enhanced: enhancedData, status: 'enhanced', errorMessage: undefined };
+        
+        // Use a functional state update to safely modify the array.
+        // This is the most robust way to handle state updates in a loop to prevent race conditions.
+        setParsedRows(currentRows => 
+          currentRows.map((row, index) => 
+            index === i 
+            ? { ...row, enhanced: enhancedData, status: 'enhanced', errorMessage: undefined } 
+            : row
+          )
+        );
 
       } catch (error: any) {
         console.error("Enhancement failed for row", i, error);
-        newRows[i] = { ...newRows[i], status: 'error', errorMessage: error.message || "An unknown error occurred." };
+        
+        setParsedRows(currentRows => 
+          currentRows.map((row, index) => 
+            index === i 
+            ? { ...row, status: 'error', errorMessage: error.message || "An unknown error occurred." } 
+            : row
+          )
+        );
       }
-      setParsedRows([...newRows]);
+      
+      // Update progress after each item is processed (successfully or not).
       setProgress(p => ({ ...p, current: i + 1 }));
     }
+    
+    // Set status back to processing once all items are done.
     setStatus('processing'); 
   };
   
