@@ -186,7 +186,8 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
       .filter(i => parsedRows[i].status !== 'enhanced');
     setProgress({ current: parsedRows.length - itemsToProcess.length, total: parsedRows.length });
     
-    const CONCURRENT_LIMIT = 5;
+    // Reduced concurrency to 2 to avoid overwhelming the API with requests.
+    const CONCURRENT_LIMIT = 2;
     const queue = [...itemsToProcess];
   
     const worker = async () => {
@@ -213,7 +214,8 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
             } catch (error) {
               if (attempt === maxRetries) throw error; // Final attempt failed, re-throw
               
-              const delay = 1500 * Math.pow(2, attempt - 1) + Math.random() * 1000;
+              // Increased delay with more backoff to handle rate limiting more gracefully.
+              const delay = 2000 * Math.pow(2, attempt - 1) + Math.random() * 1000;
               // 2. Set status to 'retrying'
               setParsedRows(current => current.map((r, idx) => i === idx ? { ...r, status: 'retrying', errorMessage: `Retry ${attempt}/${maxRetries}` } : r));
               await new Promise(resolve => setTimeout(resolve, delay));
@@ -260,7 +262,8 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
               break;
           } catch (error) {
               if (attempt === maxRetries) throw error;
-              const delay = 1500 * Math.pow(2, attempt - 1) + Math.random() * 1000;
+              // Increased delay with more backoff to handle rate limiting more gracefully.
+              const delay = 2000 * Math.pow(2, attempt - 1) + Math.random() * 1000;
               setParsedRows(current => current.map((r, idx) => index === idx ? { ...r, status: 'retrying', errorMessage: `Retry ${attempt}/${maxRetries}` } : r));
               await new Promise(resolve => setTimeout(resolve, delay));
               setParsedRows(current => current.map((r, idx) => index === idx ? { ...r, status: 'enhancing', errorMessage: undefined } : r));
@@ -429,6 +432,11 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
           <div className="w-full bg-gray-700 rounded-full h-2.5">
             <div className="bg-indigo-600 h-2.5 rounded-full" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}></div>
           </div>
+           {status === 'enhancing' && (
+            <p className="text-xs text-gray-500 pt-2">
+              Processing in small batches to ensure reliability. This may take several minutes for large lists.
+            </p>
+          )}
         </div>
       );
     }
