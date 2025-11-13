@@ -206,6 +206,52 @@ export default function App() {
     }
   }, [downloadedVideoIds]);
 
+  // Handler for selecting a video and updating the URL for deep linking.
+  const handleOpenVideo = useCallback((video: VideoFile | null) => {
+    setSelectedVideo(video);
+    const url = new URL(window.location.href);
+    if (video) {
+      url.searchParams.set('video', video.id);
+      // Push state when opening a video to allow using the back button to close it.
+      window.history.pushState({ videoId: video.id }, '', url.toString());
+    } else {
+      url.searchParams.delete('video');
+      // Replace state when closing so the modal doesn't create an extra back button entry.
+      window.history.replaceState({ videoId: null }, '', url.toString());
+    }
+  }, []);
+
+  // Effect to handle initial page load with a video ID in the URL.
+  useEffect(() => {
+    if (videos.length > 0) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const videoIdFromUrl = urlParams.get('video');
+      
+      if (videoIdFromUrl && !selectedVideo) {
+        const videoToOpen = videos.find(v => v.id === videoIdFromUrl);
+        if (videoToOpen) {
+          // Set state directly; don't call handleOpenVideo to avoid a history push.
+          setSelectedVideo(videoToOpen);
+        }
+      }
+    }
+  }, [videos, selectedVideo]);
+
+  // Effect to handle browser back/forward navigation.
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const videoIdFromUrl = urlParams.get('video');
+      const videoToOpen = videos.find(v => v.id === videoIdFromUrl) || null;
+      setSelectedVideo(videoToOpen);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [videos]);
+
   // Updates search term on input, but debounces the actual API call.
   const handleSearch = useCallback((query: string) => {
     setSearchTerm(query);
@@ -322,20 +368,20 @@ export default function App() {
       // Update local state for immediate UI feedback. The onSnapshot listener will
       // also fire, but this prevents a noticeable delay for the admin.
       setVideos(prev => prev.map(v => v.id === video.id ? video : v));
-      setSelectedVideo(null);
+      handleOpenVideo(null);
     } catch (error) {
       console.error("Failed to update video:", error);
       alert("An error occurred while saving. Please check the console and try again.");
     }
-  }, []);
+  }, [handleOpenVideo]);
 
   const handleVideoDelete = useCallback(async (videoId: string) => {
     if (!db) return;
     if (window.confirm("Are you sure you want to permanently delete this video?")) {
       await deleteDoc(doc(db, 'videos', videoId));
-      setSelectedVideo(null);
+      handleOpenVideo(null);
     }
-  }, []);
+  }, [handleOpenVideo]);
 
   const handleCheckout = useCallback(async () => {
     setIsCheckingOut(true);
@@ -450,7 +496,7 @@ export default function App() {
           <>
             <VideoGrid
               videos={visibleVideos}
-              onVideoSelect={setSelectedVideo}
+              onVideoSelect={handleOpenVideo}
               onAddToCart={handleAddToCart}
               cart={cart}
               purchasedVideoIds={purchasedItems.map(p => p.id)}
@@ -477,7 +523,7 @@ export default function App() {
       {selectedVideo && (
         <VideoPlayerModal
           video={selectedVideo}
-          onClose={() => setSelectedVideo(null)}
+          onClose={() => handleOpenVideo(null)}
           onVideoUpdate={handleVideoUpdate}
           onVideoDelete={handleVideoDelete}
           onAddToCart={handleAddToCart}
