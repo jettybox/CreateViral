@@ -14,9 +14,3 @@ export interface VideoFile {
   isFree: boolean;         // Manually set by the admin
   createdAt: number;       // Timestamp for "Newest" sorting
 }
-
-export interface Category {
-  id: string; // Document ID from Firestore
-  name: string;
-  isHidden: boolean;
-}
