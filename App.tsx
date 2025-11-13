@@ -8,6 +8,7 @@ import { VideoGrid } from './components/VideoGrid';
 import { VideoPlayerModal } from './components/VideoPlayerModal';
 import { CartPanel } from './components/CartPanel';
 import { PurchasesPanel } from './components/PurchasesPanel';
+import { FavoritesPanel } from './components/FavoritesPanel';
 import { UploadPanel } from './components/UploadPanel';
 import { SortDropdown, SortOption } from './components/SortDropdown';
 import type { VideoFile } from './types';
@@ -38,6 +39,7 @@ export default function App() {
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isPurchasesOpen, setIsPurchasesOpen] = useState(false);
+  const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
   const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
   const [cart, setCart] = useState<string[]>(() => {
     // Initialize state from localStorage to persist across sessions.
@@ -46,6 +48,15 @@ export default function App() {
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
       console.error("Could not load cart from local storage", e);
+      return [];
+    }
+  });
+  const [favoritedVideoIds, setFavoritedVideoIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('favoritedVideoIds');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Could not load favorites from local storage", e);
       return [];
     }
   });
@@ -147,7 +158,7 @@ export default function App() {
               if (verifiedIds && verifiedIds.length > 0) {
                  setPurchasedVideoIds(prev => [...new Set([...prev, ...verifiedIds])]);
                  setCart(prev => prev.filter(id => !verifiedIds.includes(id)));
-                 setIsPurchasesOpen(true);
+                 openPurchasesPanel();
                  alert('Thank you for your purchase! Your downloads are now available.');
               } else {
                  throw new Error("Verification succeeded, but no purchased items were returned.");
@@ -187,6 +198,15 @@ export default function App() {
       console.error("Could not save cart to local storage", e);
     }
   }, [cart]);
+
+  // Effect to persist favorites to localStorage.
+  useEffect(() => {
+    try {
+      localStorage.setItem('favoritedVideoIds', JSON.stringify(favoritedVideoIds));
+    } catch (e) {
+      console.error("Could not save favorites to local storage", e);
+    }
+  }, [favoritedVideoIds]);
 
   // Effect to persist the list of purchased video IDs to localStorage.
   useEffect(() => {
@@ -350,24 +370,38 @@ export default function App() {
   const hasMoreVideos = visibleVideos.length < filteredAndSortedVideos.length;
   
   const cartItems = useMemo(() => videos.filter(v => cart.includes(v.id)), [videos, cart]);
+  const favoritedItems = useMemo(() => videos.filter(v => favoritedVideoIds.includes(v.id)), [videos, favoritedVideoIds]);
   const purchasedItems = useMemo(() => {
       // Free items are no longer automatically owned.
       // The user must add them to the cart and "checkout" for free.
       return videos.filter(v => purchasedVideoIds.includes(v.id)).sort((a,b) => b.createdAt - a.createdAt);
   }, [videos, purchasedVideoIds]);
+  
+  // Panel opening handlers. Ensures only one panel is open at a time.
+  const openCartPanel = () => { setIsPurchasesOpen(false); setIsFavoritesOpen(false); setIsCartOpen(true); };
+  const openPurchasesPanel = () => { setIsCartOpen(false); setIsFavoritesOpen(false); setIsPurchasesOpen(true); };
+  const openFavoritesPanel = () => { setIsCartOpen(false); setIsPurchasesOpen(false); setIsFavoritesOpen(true); };
 
   const handleAddToCart = useCallback((videoId: string) => {
     if (cart.includes(videoId) || purchasedVideoIds.includes(videoId)) return;
     setCart(prev => [...prev, videoId]);
-    setIsCartOpen(true);
+    openCartPanel();
   }, [cart, purchasedVideoIds]);
 
   const handleGetFreeItem = useCallback((videoId: string) => {
     if (purchasedVideoIds.includes(videoId)) return;
     setPurchasedVideoIds(prev => [...new Set([...prev, videoId])]);
     // For instant gratification, open the purchases panel.
-    setIsPurchasesOpen(true);
+    openPurchasesPanel();
   }, [purchasedVideoIds]);
+  
+  const handleToggleFavorite = useCallback((videoId: string) => {
+    setFavoritedVideoIds(prev =>
+      prev.includes(videoId)
+        ? prev.filter(id => id !== videoId)
+        : [...prev, videoId]
+    );
+  }, []);
 
 
   const handleRemoveFromCart = useCallback((videoId: string) => setCart(prev => prev.filter(id => id !== videoId)), []);
@@ -412,7 +446,7 @@ export default function App() {
       setPurchasedVideoIds(prev => [...new Set([...prev, ...cart])]);
       setCart([]);
       setIsCartOpen(false);
-      setIsPurchasesOpen(true);
+      openPurchasesPanel();
       setIsCheckingOut(false);
       return;
     }
@@ -474,9 +508,11 @@ export default function App() {
         onLicenseClick={() => setIsLicenseModalOpen(true)}
         onAboutClick={() => setIsAboutModalOpen(true)}
         cartItemCount={cart.length}
-        onCartClick={() => setIsCartOpen(true)}
+        onCartClick={openCartPanel}
+        favoritedItemCount={favoritedVideoIds.length}
+        onFavoritesClick={openFavoritesPanel}
         undownloadedItemCount={purchasedItems.filter(p => !downloadedVideoIds.includes(p.id)).length}
-        onPurchasesClick={() => setIsPurchasesOpen(true)}
+        onPurchasesClick={openPurchasesPanel}
         isAdmin={isAdmin}
         onUploadClick={() => setIsUploadPanelOpen(true)}
       />
@@ -518,8 +554,10 @@ export default function App() {
               onVideoSelect={handleOpenVideo}
               onAddToCart={handleAddToCart}
               onGetFreeItem={handleGetFreeItem}
+              onToggleFavorite={handleToggleFavorite}
               cart={cart}
               purchasedVideoIds={purchasedItems.map(p => p.id)}
+              favoritedVideoIds={favoritedVideoIds}
               isAdmin={isAdmin}
             />
             {hasMoreVideos && (
@@ -550,8 +588,10 @@ export default function App() {
           onVideoDelete={handleVideoDelete}
           onAddToCart={handleAddToCart}
           onGetFreeItem={handleGetFreeItem}
+          onToggleFavorite={handleToggleFavorite}
           isInCart={cart.includes(selectedVideo.id)}
           isPurchased={purchasedItems.some(p => p.id === selectedVideo.id)}
+          isFavorited={favoritedVideoIds.includes(selectedVideo.id)}
           isAdmin={isAdmin}
         />
       )}
@@ -575,6 +615,19 @@ export default function App() {
           onVideoDownloaded={(id) => setDownloadedVideoIds(prev => [...new Set([...prev, id])])}
           isAdmin={isAdmin}
           onRemoveItem={handleRemoveFromPurchases}
+        />
+      )}
+
+      {isFavoritesOpen && (
+        <FavoritesPanel
+          items={favoritedItems}
+          onClose={() => setIsFavoritesOpen(false)}
+          onRemoveItem={handleToggleFavorite}
+          onAddToCart={handleAddToCart}
+          onViewItem={(video) => {
+              setIsFavoritesOpen(false);
+              handleOpenVideo(video);
+          }}
         />
       )}
     </div>
