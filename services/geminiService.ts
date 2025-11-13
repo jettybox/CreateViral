@@ -250,7 +250,25 @@ export async function enhanceVideoMetadata(
 }
 
 /**
- * Finds related videos using a local, high-performance scoring algorithm.
+ * Shuffles an array in place.
+ * @param array The array to shuffle.
+ * @returns The shuffled array.
+ */
+function shuffleArray<T>(array: T[]): T[] {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+// A simple list of common English "stop words" to ignore in title matching.
+const STOP_WORDS = new Set(['a', 'an', 'and', 'the', 'is', 'in', 'on', 'of', 'for', 'to', 'with', 'by', 'on']);
+
+/**
+ * Finds related videos using a sophisticated local scoring algorithm.
+ * It prioritizes title matches, uses categories and keywords, breaks ties
+ * with commercial appeal, and includes a "discovery" mechanism.
  * @param sourceVideo The video to find related content for.
  * @param allVideos The entire library of videos to search through.
  * @returns An array of up to 5 related VideoFile objects, sorted by relevance.
@@ -259,9 +277,16 @@ export function getRelatedVideos(sourceVideo: VideoFile, allVideos: VideoFile[])
     if (!sourceVideo || allVideos.length < 2) {
         return [];
     }
-
+    
+    // Prepare source data for efficient matching
     const sourceKeywords = new Set(sourceVideo.keywords.map(k => k.toLowerCase()));
     const sourceCategories = new Set(sourceVideo.categories);
+    const sourceTitleWords = new Set(
+        sourceVideo.title
+            .toLowerCase()
+            .split(/\s+/)
+            .filter(word => word.length > 2 && !STOP_WORDS.has(word))
+    );
 
     const scoredVideos = allVideos
         // Exclude the source video itself from the recommendations
@@ -269,17 +294,25 @@ export function getRelatedVideos(sourceVideo: VideoFile, allVideos: VideoFile[])
         .map(video => {
             let score = 0;
             
-            // 1. Shared Categories (High weight)
-            for (const category of video.categories) {
-                if (sourceCategories.has(category)) {
-                    score += 10;
+            // 1. Title Word Matching (Very high weight for strong relevance)
+            const videoTitleWords = video.title.toLowerCase().split(/\s+/);
+            for (const word of videoTitleWords) {
+                if (sourceTitleWords.has(word)) {
+                    score += 15;
                 }
             }
 
-            // 2. Shared Keywords (Medium weight)
+            // 2. Shared Categories (High weight for thematic similarity)
+            for (const category of video.categories) {
+                if (sourceCategories.has(category)) {
+                    score += 5;
+                }
+            }
+
+            // 3. Shared Keywords (Medium weight for specific details)
             for (const keyword of video.keywords) {
                 if (sourceKeywords.has(keyword.toLowerCase())) {
-                    score += 3;
+                    score += 2;
                 }
             }
 
@@ -288,9 +321,29 @@ export function getRelatedVideos(sourceVideo: VideoFile, allVideos: VideoFile[])
         // Filter out videos with no shared characteristics
         .filter(item => item.score > 0);
 
-    // Sort by score (descending) and return the top 5 videos
-    return scoredVideos
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5)
-        .map(item => item.video);
+    // Primary sort by score, secondary by commercial appeal for tie-breaking
+    scoredVideos.sort((a, b) => {
+        if (a.score !== b.score) {
+            return b.score - a.score;
+        }
+        return b.video.commercialAppeal - a.video.commercialAppeal;
+    });
+
+    // --- New Selection Logic with "Discovery" Feature ---
+    
+    // Take the top 3 most relevant videos directly to ensure quality.
+    const topResults = scoredVideos.slice(0, 3).map(item => item.video);
+
+    // From the next 10 candidates, shuffle them to introduce variety.
+    const discoveryCandidates = scoredVideos.slice(3, 13);
+    const shuffledCandidates = shuffleArray(discoveryCandidates).map(item => item.video);
+
+    // Take up to 2 from the shuffled discovery pool to fill the remaining slots.
+    const discoveryResults = shuffledCandidates.slice(0, 2);
+
+    // Combine the deterministic top results with the random discovery results.
+    const finalResults = [...topResults, ...discoveryResults];
+
+    // Ensure we return at most 5 videos.
+    return finalResults.slice(0, 5);
 }
