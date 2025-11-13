@@ -7,12 +7,14 @@ interface VideoGridProps {
   onVideoSelect: (video: VideoFile) => void;
   onAddToCart: (videoId: string) => void;
   onGetFreeItem: (videoId: string) => void;
+  onToggleFavorite: (videoId: string) => void;
   cart: string[];
   purchasedVideoIds: string[];
+  favoritedVideoIds: string[];
   isAdmin: boolean;
 }
 
-export const VideoGrid: React.FC<VideoGridProps> = ({ videos, onVideoSelect, onAddToCart, onGetFreeItem, cart, purchasedVideoIds, isAdmin }) => {
+export const VideoGrid: React.FC<VideoGridProps> = ({ videos, onVideoSelect, onAddToCart, onGetFreeItem, onToggleFavorite, cart, purchasedVideoIds, favoritedVideoIds, isAdmin }) => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {videos.map((video) => {
@@ -24,8 +26,10 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ videos, onVideoSelect, onA
               onSelect={() => onVideoSelect(video)} 
               onAddToCart={() => onAddToCart(video.id)}
               onGetFreeItem={() => onGetFreeItem(video.id)}
+              onToggleFavorite={() => onToggleFavorite(video.id)}
               isInCart={cart.includes(video.id)}
               isPurchased={purchasedVideoIds.includes(video.id)}
+              isFavorited={favoritedVideoIds.includes(video.id)}
               isAdmin={isAdmin}
             />
           </div>
