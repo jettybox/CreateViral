@@ -3,7 +3,7 @@ import type { VideoFile } from '../types';
 import { CATEGORIES } from '../constants';
 import { 
   XIcon, TagIcon, InfoIcon, EditIcon, CartIcon, CheckIcon, StarIcon, TrashIcon, WarningIcon, 
-  ShareIcon, ClipboardIcon, TwitterXIcon, FacebookIcon, RedditIcon, WhatsAppIcon, SparklesIcon, DownloadIcon
+  ShareIcon, ClipboardIcon, TwitterXIcon, FacebookIcon, RedditIcon, WhatsAppIcon, SparklesIcon, DownloadIcon, HeartIcon
 } from './Icons';
 import { getCachedVideoUrl } from '../services/videoCacheService';
 import { getRelatedVideos } from '../services/geminiService';
@@ -18,8 +18,10 @@ interface VideoPlayerModalProps {
   onVideoDelete: (videoId: string) => void;
   onAddToCart: (videoId: string) => void;
   onGetFreeItem: (videoId: string) => void;
+  onToggleFavorite: (videoId: string) => void;
   isInCart: boolean;
   isPurchased: boolean;
+  isFavorited: boolean;
   isAdmin: boolean;
 }
 
@@ -28,7 +30,7 @@ const formLabelClass = "block text-sm font-medium text-gray-300 mb-1";
 const shareButtonClass = "p-2 rounded-full bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
 
-export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, allVideos, onClose, onVideoSelect, onVideoUpdate, onVideoDelete, onAddToCart, onGetFreeItem, isInCart, isPurchased, isAdmin }) => {
+export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, allVideos, onClose, onVideoSelect, onVideoUpdate, onVideoDelete, onAddToCart, onGetFreeItem, onToggleFavorite, isInCart, isPurchased, isFavorited, isAdmin }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableVideo, setEditableVideo] = useState<VideoFile>(video);
   const [keywordsInput, setKeywordsInput] = useState('');
@@ -221,7 +223,16 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, allVi
                 ) : (
                   <>
                     {isAdmin && (<button onClick={() => setIsEditing(true)} className="w-full py-2 mb-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"><EditIcon className="w-5 h-5" />Edit Details</button>)}
-                    {renderActionButton()}
+                    <div className="flex items-center gap-2">
+                       {renderActionButton()}
+                       <button 
+                         onClick={() => onToggleFavorite(video.id)} 
+                         className={`p-3 rounded-lg transition-colors ${isFavorited ? 'bg-pink-600 text-white hover:bg-pink-700' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}
+                         aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+                        >
+                         <HeartIcon className="w-6 h-6" filled={isFavorited} />
+                       </button>
+                    </div>
                     <div className="mt-6"><h4 className="text-sm font-semibold text-gray-400 flex items-center gap-2"><ShareIcon className="w-5 h-5" />Share this video</h4><div className="mt-3 flex items-center gap-3"><button onClick={handleCopyLink} title={isLinkCopied ? "Copied!" : "Copy link"} className={`${shareButtonClass} ${isLinkCopied ? 'bg-green-600 text-white' : ''}`}>{isLinkCopied ? <CheckIcon className="w-5 h-5" /> : <ClipboardIcon className="w-5 h-5" />}</button><a href={`https://twitter.com/intent/tweet?text=${tweetText}&url=${encodedShareUrl}&via=CreateViralAI`} target="_blank" rel="noopener noreferrer" title="Share on X" className={shareButtonClass}><TwitterXIcon className="w-5 h-5" /></a><a href={`https://www.facebook.com/sharer/sharer.php?u=${encodedShareUrl}`} target="_blank" rel="noopener noreferrer" title="Share on Facebook" className={shareButtonClass}><FacebookIcon className="w-5 h-5" /></a><a href={`https://www.reddit.com/submit?url=${encodedShareUrl}&title=${encodedTitle}`} target="_blank" rel="noopener noreferrer" title="Share on Reddit" className={shareButtonClass}><RedditIcon className="w-5 h-5" /></a><a href={`https://api.whatsapp.com/send?text=${tweetText}%20${encodedShareUrl}`} target="_blank" rel="noopener noreferrer" title="Share on WhatsApp" className={shareButtonClass}><WhatsAppIcon className="w-5 h-5" /></a></div></div>
                   </>
                 )}
