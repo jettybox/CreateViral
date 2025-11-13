@@ -8,7 +8,7 @@ import { VideoGrid } from './components/VideoGrid';
 import { VideoPlayerModal } from './components/VideoPlayerModal';
 import { CartPanel } from './components/CartPanel';
 import { PurchasesPanel } from './components/PurchasesPanel';
-import { FavoritesPanel } from './components/FavoritesPanel';
+// import { FavoritesPanel } from './components/FavoritesPanel'; // Temporarily disabled
 import { UploadPanel } from './components/UploadPanel';
 import { SortDropdown, SortOption } from './components/SortDropdown';
 import type { VideoFile } from './types';
@@ -39,7 +39,7 @@ export default function App() {
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isPurchasesOpen, setIsPurchasesOpen] = useState(false);
-  const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
+  // const [isFavoritesOpen, setIsFavoritesOpen] = useState(false); // Temporarily disabled
   const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
   const [cart, setCart] = useState<string[]>(() => {
     // Initialize state from localStorage to persist across sessions.
@@ -51,7 +51,7 @@ export default function App() {
       return [];
     }
   });
-  const [favoritedVideoIds, setFavoritedVideoIds] = useState<string[]>(() => {
+  const [favoritedVideoIds, setFavoritedVideoIds] = useState<string[]>(() => { // Keep state for now, but don't use it
     try {
       const saved = localStorage.getItem('favoritedVideoIds');
       return saved ? JSON.parse(saved) : [];
@@ -200,7 +200,7 @@ export default function App() {
   }, [cart]);
 
   // Effect to persist favorites to localStorage.
-  useEffect(() => {
+  useEffect(() => { // Keep this logic, it will save favorites once the feature is re-enabled.
     try {
       localStorage.setItem('favoritedVideoIds', JSON.stringify(favoritedVideoIds));
     } catch (e) {
@@ -370,7 +370,7 @@ export default function App() {
   const hasMoreVideos = visibleVideos.length < filteredAndSortedVideos.length;
   
   const cartItems = useMemo(() => videos.filter(v => cart.includes(v.id)), [videos, cart]);
-  const favoritedItems = useMemo(() => videos.filter(v => favoritedVideoIds.includes(v.id)), [videos, favoritedVideoIds]);
+  // const favoritedItems = useMemo(() => videos.filter(v => favoritedVideoIds.includes(v.id)), [videos, favoritedVideoIds]); // Temporarily disabled
   const purchasedItems = useMemo(() => {
       // Free items are no longer automatically owned.
       // The user must add them to the cart and "checkout" for free.
@@ -378,9 +378,9 @@ export default function App() {
   }, [videos, purchasedVideoIds]);
   
   // Panel opening handlers. Ensures only one panel is open at a time.
-  const openCartPanel = () => { setIsPurchasesOpen(false); setIsFavoritesOpen(false); setIsCartOpen(true); };
-  const openPurchasesPanel = () => { setIsCartOpen(false); setIsFavoritesOpen(false); setIsPurchasesOpen(true); };
-  const openFavoritesPanel = () => { setIsCartOpen(false); setIsPurchasesOpen(false); setIsFavoritesOpen(true); };
+  const openCartPanel = () => { /*setIsFavoritesOpen(false);*/ setIsPurchasesOpen(false); setIsCartOpen(true); };
+  const openPurchasesPanel = () => { /*setIsFavoritesOpen(false);*/ setIsCartOpen(false); setIsPurchasesOpen(true); };
+  // const openFavoritesPanel = () => { setIsCartOpen(false); setIsPurchasesOpen(false); setIsFavoritesOpen(true); }; // Temporarily disabled
 
   const handleAddToCart = useCallback((videoId: string) => {
     if (cart.includes(videoId) || purchasedVideoIds.includes(videoId)) return;
@@ -395,7 +395,7 @@ export default function App() {
     openPurchasesPanel();
   }, [purchasedVideoIds]);
   
-  const handleToggleFavorite = useCallback((videoId: string) => {
+  const handleToggleFavorite = useCallback((videoId: string) => { // Keep handler logic
     setFavoritedVideoIds(prev =>
       prev.includes(videoId)
         ? prev.filter(id => id !== videoId)
@@ -509,8 +509,8 @@ export default function App() {
         onAboutClick={() => setIsAboutModalOpen(true)}
         cartItemCount={cart.length}
         onCartClick={openCartPanel}
-        favoritedItemCount={favoritedVideoIds.length}
-        onFavoritesClick={openFavoritesPanel}
+        favoritedItemCount={favoritedVideoIds.length} // Keep prop for now
+        onFavoritesClick={() => {}} // Temporarily disabled
         undownloadedItemCount={purchasedItems.filter(p => !downloadedVideoIds.includes(p.id)).length}
         onPurchasesClick={openPurchasesPanel}
         isAdmin={isAdmin}
@@ -554,10 +554,10 @@ export default function App() {
               onVideoSelect={handleOpenVideo}
               onAddToCart={handleAddToCart}
               onGetFreeItem={handleGetFreeItem}
-              onToggleFavorite={handleToggleFavorite}
+              onToggleFavorite={handleToggleFavorite} // Keep passing prop
               cart={cart}
               purchasedVideoIds={purchasedItems.map(p => p.id)}
-              favoritedVideoIds={favoritedVideoIds}
+              favoritedVideoIds={favoritedVideoIds} // Keep passing prop
               isAdmin={isAdmin}
             />
             {hasMoreVideos && (
@@ -588,10 +588,10 @@ export default function App() {
           onVideoDelete={handleVideoDelete}
           onAddToCart={handleAddToCart}
           onGetFreeItem={handleGetFreeItem}
-          onToggleFavorite={handleToggleFavorite}
+          onToggleFavorite={handleToggleFavorite} // Keep passing prop
           isInCart={cart.includes(selectedVideo.id)}
           isPurchased={purchasedItems.some(p => p.id === selectedVideo.id)}
-          isFavorited={favoritedVideoIds.includes(selectedVideo.id)}
+          isFavorited={favoritedVideoIds.includes(selectedVideo.id)} // Keep passing prop
           isAdmin={isAdmin}
         />
       )}
@@ -618,7 +618,7 @@ export default function App() {
         />
       )}
 
-      {isFavoritesOpen && (
+      {/* {isFavoritesOpen && ( // Temporarily disabled
         <FavoritesPanel
           items={favoritedItems}
           onClose={() => setIsFavoritesOpen(false)}
@@ -629,7 +629,7 @@ export default function App() {
               handleOpenVideo(video);
           }}
         />
-      )}
+      )} */}
     </div>
   );
 }
