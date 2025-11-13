@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
+import { CATEGORIES } from '../constants';
 import type { VideoFile } from '../types';
 
 // Lazily initialize the AI client.
@@ -164,15 +165,11 @@ const metadataEnhancementSchema = {
 };
 
 export async function enhanceVideoMetadata(
-    videoData: { title: string; keywords: string[] },
-    availableCategories: string[]
+    videoData: { title: string; keywords: string[] }
 ): Promise<{ description: string; categories: string[]; commercialAppeal: number; }> {
     const aiClient = getAiClient();
     if (!aiClient) {
         throw new Error("Cannot enhance metadata, Gemini API key is not configured.");
-    }
-    if (!availableCategories || availableCategories.length === 0) {
-        throw new Error("Cannot enhance metadata, no available categories were provided.");
     }
     
     const prompt = `
@@ -188,7 +185,7 @@ export async function enhanceVideoMetadata(
         Return the result as a JSON object matching the provided schema.
         
         Available Categories:
-        ${availableCategories.join(', ')}
+        ${CATEGORIES.join(', ')}
 
         Video Information:
         Title: "${videoData.title}"
