@@ -1,4 +1,4 @@
-export const CATEGORIES = [
+export const INITIAL_CATEGORIES = [
   'Abstract',
   'Backgrounds',
   'Business',
