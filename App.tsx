@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { collection, onSnapshot, doc, deleteDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js';
@@ -622,9 +623,12 @@ export default function App() {
       {isFavoritesOpen && (
         <FavoritesPanel
           items={favoritedItems}
+          cart={cart}
+          purchasedVideoIds={purchasedItems.map(p => p.id)}
           onClose={() => setIsFavoritesOpen(false)}
           onRemoveItem={handleToggleFavorite}
           onAddToCart={handleAddToCart}
+          onGetFreeItem={handleGetFreeItem}
           onViewItem={(video) => {
               setIsFavoritesOpen(false);
               handleOpenVideo(video);
