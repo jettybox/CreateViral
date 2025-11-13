@@ -208,18 +208,29 @@ export default function App() {
 
   // Handler for selecting a video and updating the URL for deep linking.
   const handleOpenVideo = useCallback((video: VideoFile | null) => {
+    // If the same video is selected, do nothing.
+    if (video && selectedVideo && video.id === selectedVideo.id) {
+        return;
+    }
+      
     setSelectedVideo(video);
     const url = new URL(window.location.href);
+
+    // Don't manipulate history if we are just switching between videos in the modal.
+    const isSwitching = selectedVideo && video;
+
     if (video) {
       url.searchParams.set('video', video.id);
-      // Push state when opening a video to allow using the back button to close it.
-      window.history.pushState({ videoId: video.id }, '', url.toString());
+      if (isSwitching) {
+          window.history.replaceState({ videoId: video.id }, '', url.toString());
+      } else {
+          window.history.pushState({ videoId: video.id }, '', url.toString());
+      }
     } else {
       url.searchParams.delete('video');
-      // Replace state when closing so the modal doesn't create an extra back button entry.
       window.history.replaceState({ videoId: null }, '', url.toString());
     }
-  }, []);
+  }, [selectedVideo]);
 
   // Effect to handle initial page load with a video ID in the URL.
   useEffect(() => {
@@ -523,7 +534,9 @@ export default function App() {
       {selectedVideo && (
         <VideoPlayerModal
           video={selectedVideo}
+          allVideos={videos}
           onClose={() => handleOpenVideo(null)}
+          onVideoSelect={handleOpenVideo}
           onVideoUpdate={handleVideoUpdate}
           onVideoDelete={handleVideoDelete}
           onAddToCart={handleAddToCart}
