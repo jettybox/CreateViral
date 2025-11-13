@@ -1,11 +1,6 @@
-
-
-
-
-
-
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORIES } from '../constants';
+import type { VideoFile } from '../types';
 
 // Lazily initialize the AI client.
 let ai: GoogleGenAI | null = null;
@@ -252,4 +247,50 @@ export async function enhanceVideoMetadata(
         console.error("Error calling Gemini API for metadata enhancement:", error);
         throw new Error(error.message || "Failed to enhance metadata. Please check the console for details.");
     }
+}
+
+/**
+ * Finds related videos using a local, high-performance scoring algorithm.
+ * @param sourceVideo The video to find related content for.
+ * @param allVideos The entire library of videos to search through.
+ * @returns An array of up to 5 related VideoFile objects, sorted by relevance.
+ */
+export function getRelatedVideos(sourceVideo: VideoFile, allVideos: VideoFile[]): VideoFile[] {
+    if (!sourceVideo || allVideos.length < 2) {
+        return [];
+    }
+
+    const sourceKeywords = new Set(sourceVideo.keywords.map(k => k.toLowerCase()));
+    const sourceCategories = new Set(sourceVideo.categories);
+
+    const scoredVideos = allVideos
+        // Exclude the source video itself from the recommendations
+        .filter(video => video.id !== sourceVideo.id)
+        .map(video => {
+            let score = 0;
+            
+            // 1. Shared Categories (High weight)
+            for (const category of video.categories) {
+                if (sourceCategories.has(category)) {
+                    score += 10;
+                }
+            }
+
+            // 2. Shared Keywords (Medium weight)
+            for (const keyword of video.keywords) {
+                if (sourceKeywords.has(keyword.toLowerCase())) {
+                    score += 3;
+                }
+            }
+
+            return { video, score };
+        })
+        // Filter out videos with no shared characteristics
+        .filter(item => item.score > 0);
+
+    // Sort by score (descending) and return the top 5 videos
+    return scoredVideos
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5)
+        .map(item => item.video);
 }
