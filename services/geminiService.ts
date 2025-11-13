@@ -1,5 +1,4 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { CATEGORIES } from '../constants';
 import type { VideoFile } from '../types';
 
 // Lazily initialize the AI client.
@@ -165,11 +164,15 @@ const metadataEnhancementSchema = {
 };
 
 export async function enhanceVideoMetadata(
-    videoData: { title: string; keywords: string[] }
+    videoData: { title: string; keywords: string[] },
+    availableCategories: string[]
 ): Promise<{ description: string; categories: string[]; commercialAppeal: number; }> {
     const aiClient = getAiClient();
     if (!aiClient) {
         throw new Error("Cannot enhance metadata, Gemini API key is not configured.");
+    }
+    if (!availableCategories || availableCategories.length === 0) {
+        throw new Error("Cannot enhance metadata, no available categories were provided.");
     }
     
     const prompt = `
@@ -185,7 +188,7 @@ export async function enhanceVideoMetadata(
         Return the result as a JSON object matching the provided schema.
         
         Available Categories:
-        ${CATEGORIES.join(', ')}
+        ${availableCategories.join(', ')}
 
         Video Information:
         Title: "${videoData.title}"
@@ -248,6 +251,75 @@ export async function enhanceVideoMetadata(
         throw new Error(error.message || "Failed to enhance metadata. Please check the console for details.");
     }
 }
+
+const categorizationSchema = {
+    type: Type.OBJECT,
+    properties: {
+        shouldAddCategory: {
+            type: Type.BOOLEAN,
+            description: "Whether the video fits the described category."
+        },
+        reasoning: {
+            type: Type.STRING,
+            description: "A brief, one-sentence explanation for the decision."
+        }
+    },
+    required: ["shouldAddCategory", "reasoning"]
+};
+
+export async function categorizeVideo(
+    videoInfo: { title: string; description: string; keywords: string[] },
+    categoryName: string,
+    categoryDescription: string
+): Promise<{ shouldAddCategory: boolean; reasoning: string }> {
+    const aiClient = getAiClient();
+    if (!aiClient) {
+        throw new Error("Cannot categorize video, Gemini API key is not configured.");
+    }
+
+    const prompt = `
+        You are an expert video librarian. Your task is to determine if a specific video belongs in a new category based on its metadata and a clear description of the category.
+        You MUST return a JSON object that strictly follows the provided schema.
+
+        **Category to Evaluate:**
+        - Name: "${categoryName}"
+        - Description: "${categoryDescription}"
+
+        **Video Metadata:**
+        - Title: "${videoInfo.title}"
+        - Description: "${videoInfo.description}"
+        - Keywords: [${videoInfo.keywords.join(', ')}]
+
+        **Your Task:**
+        Based on all the provided information, does this video fit into the "${categoryName}" category?
+        Provide a boolean response for 'shouldAddCategory' and a brief justification.
+    `;
+
+    try {
+        const response = await aiClient.models.generateContent({
+            model: model,
+            contents: { parts: [{ text: prompt }] },
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: categorizationSchema,
+                temperature: 0.1 // Use low temperature for more deterministic, fact-based decisions.
+            },
+        });
+
+        const jsonString = response.text.trim();
+        const parsedJson = JSON.parse(jsonString);
+
+        if (typeof parsedJson.shouldAddCategory === 'boolean' && typeof parsedJson.reasoning === 'string') {
+            return parsedJson;
+        } else {
+            throw new Error("AI returned a JSON object with an unexpected structure.");
+        }
+    } catch (error: any) {
+        console.error(`Error categorizing video for category "${categoryName}":`, error);
+        throw new Error(error.message || "Failed to categorize video.");
+    }
+}
+
 
 /**
  * Shuffles an array in place.
