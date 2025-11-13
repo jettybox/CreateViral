@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import type { VideoFile } from '../types';
-// fix: Correctly import INITIAL_CATEGORIES and alias it as CATEGORIES.
 import { INITIAL_CATEGORIES as CATEGORIES } from '../constants';
 import { 
   XIcon, TagIcon, InfoIcon, EditIcon, CartIcon, CheckIcon, StarIcon, TrashIcon, WarningIcon, 
