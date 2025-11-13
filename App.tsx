@@ -362,6 +362,14 @@ export default function App() {
     setIsCartOpen(true);
   }, [cart, purchasedVideoIds]);
 
+  const handleGetFreeItem = useCallback((videoId: string) => {
+    if (purchasedVideoIds.includes(videoId)) return;
+    setPurchasedVideoIds(prev => [...new Set([...prev, videoId])]);
+    // For instant gratification, open the purchases panel.
+    setIsPurchasesOpen(true);
+  }, [purchasedVideoIds]);
+
+
   const handleRemoveFromCart = useCallback((videoId: string) => setCart(prev => prev.filter(id => id !== videoId)), []);
   const handleClearCart = useCallback(() => setCart([]), []);
 
@@ -509,6 +517,7 @@ export default function App() {
               videos={visibleVideos}
               onVideoSelect={handleOpenVideo}
               onAddToCart={handleAddToCart}
+              onGetFreeItem={handleGetFreeItem}
               cart={cart}
               purchasedVideoIds={purchasedItems.map(p => p.id)}
               isAdmin={isAdmin}
@@ -540,6 +549,7 @@ export default function App() {
           onVideoUpdate={handleVideoUpdate}
           onVideoDelete={handleVideoDelete}
           onAddToCart={handleAddToCart}
+          onGetFreeItem={handleGetFreeItem}
           isInCart={cart.includes(selectedVideo.id)}
           isPurchased={purchasedItems.some(p => p.id === selectedVideo.id)}
           isAdmin={isAdmin}
