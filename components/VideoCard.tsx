@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { VideoFile } from '../types';
-import { PlayIcon, CartIcon, CheckIcon, DownloadIcon } from './Icons';
+import { PlayIcon, CartIcon, CheckIcon, DownloadIcon, HeartIcon } from './Icons';
 import { Spinner } from './Spinner';
 import { getCachedVideoUrl } from '../services/videoCacheService';
 
@@ -9,12 +9,14 @@ interface VideoCardProps {
   onSelect: () => void;
   onAddToCart: () => void;
   onGetFreeItem: () => void;
+  onToggleFavorite: () => void;
   isInCart: boolean;
   isPurchased: boolean;
+  isFavorited: boolean;
   isAdmin: boolean;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, onGetFreeItem, isInCart, isPurchased, isAdmin }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, onGetFreeItem, onToggleFavorite, isInCart, isPurchased, isFavorited, isAdmin }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
   
@@ -115,6 +117,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
       }
     }
   };
+  
+  const handleFavoriteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleFavorite();
+  };
 
 
   const displayKeywords = video.keywords
@@ -207,6 +214,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
         }`}>
           {video.isFree ? 'Free' : `$${video.price.toFixed(2)}`}
         </div>
+        <button
+          onClick={handleFavoriteClick}
+          className={`absolute top-2 left-2 p-2 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100 transform group-hover:scale-110 ${isFavorited ? 'bg-pink-600/80 text-white' : 'bg-gray-900/60 text-gray-300 hover:bg-gray-900/80'}`}
+          aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          <HeartIcon className="w-5 h-5" filled={isFavorited} />
+        </button>
         <button
           onClick={handleActionClick}
           disabled={actionButton.disabled}
