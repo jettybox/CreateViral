@@ -1,5 +1,5 @@
 import React from 'react';
-import { FilmIcon, SearchIcon, ExclamationCircleIcon, CartIcon, UploadIcon, QuestionMarkCircleIcon, DownloadIcon } from './Icons';
+import { FilmIcon, SearchIcon, ExclamationCircleIcon, CartIcon, UploadIcon, QuestionMarkCircleIcon, DownloadIcon, HeartIcon } from './Icons';
 import { Spinner } from './Spinner';
 
 interface HeaderProps {
@@ -9,6 +9,8 @@ interface HeaderProps {
   onLicenseClick: () => void;
   cartItemCount: number;
   onCartClick: () => void;
+  favoritedItemCount: number;
+  onFavoritesClick: () => void;
   undownloadedItemCount: number;
   onPurchasesClick: () => void;
   isAdmin: boolean;
@@ -22,6 +24,8 @@ export const Header: React.FC<HeaderProps> = ({
   onLicenseClick, 
   cartItemCount, 
   onCartClick,
+  favoritedItemCount,
+  onFavoritesClick,
   undownloadedItemCount,
   onPurchasesClick,
   isAdmin, 
@@ -78,6 +82,18 @@ export const Header: React.FC<HeaderProps> = ({
             aria-label="About this site"
           >
             <QuestionMarkCircleIcon className="w-6 h-6 text-gray-300" />
+          </button>
+           <button
+            onClick={onFavoritesClick}
+            className="relative flex-shrink-0 p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            aria-label="Open favorites list"
+          >
+            <HeartIcon className="w-6 h-6 text-gray-300" />
+            {favoritedItemCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-pink-500 text-xs font-bold text-white">
+                {favoritedItemCount}
+              </span>
+            )}
           </button>
            <button
             onClick={onCartClick}
