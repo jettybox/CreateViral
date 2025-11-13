@@ -12,9 +12,10 @@ import { CartPanel } from './components/CartPanel';
 import { PurchasesPanel } from './components/PurchasesPanel';
 import { FavoritesPanel } from './components/FavoritesPanel';
 import { UploadPanel } from './components/UploadPanel';
+import { CategoryManagerPanel } from './components/CategoryManagerPanel';
 import { SortDropdown, SortOption } from './components/SortDropdown';
 import type { VideoFile } from './types';
-import { CATEGORIES } from './constants';
+import { CATEGORIES as BASE_CATEGORIES } from './constants';
 import { FilmIcon, WarningIcon } from './components/Icons';
 import { getEnhancedSearchTerms } from './services/geminiService';
 import { setProtectedUrls } from './services/videoCacheService';
@@ -43,6 +44,8 @@ export default function App() {
   const [isPurchasesOpen, setIsPurchasesOpen] = useState(false);
   const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
   const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
   const [cart, setCart] = useState<string[]>(() => {
     // Initialize state from localStorage to persist across sessions.
     try {
@@ -100,7 +103,7 @@ export default function App() {
         setIsLoading(false);
         return;
     }
-    const unsubscribe = onSnapshot(collection(db, "videos"), (snapshot) => {
+    const unsubscribeVideos = onSnapshot(collection(db, "videos"), (snapshot) => {
       const videosData: VideoFile[] = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -128,7 +131,30 @@ export default function App() {
       setConnectionError("Failed to connect to the video database. Please check your internet connection and Firebase configuration.");
       setIsLoading(false);
     });
-    return () => unsubscribe();
+
+    // New listener for site configuration, including hidden categories.
+    const configDocRef = doc(db, 'site_config', 'main');
+    const unsubscribeConfig = onSnapshot(configDocRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const configData = snapshot.data();
+            const hidden = configData.hiddenCategories;
+            if (Array.isArray(hidden) && hidden.every(item => typeof item === 'string')) {
+                setHiddenCategories(hidden);
+            } else {
+                setHiddenCategories([]);
+            }
+        } else {
+            console.log("Site config document does not exist, using default visibility.");
+            setHiddenCategories([]);
+        }
+    }, (error) => {
+        console.error("Error fetching site config:", error);
+    });
+
+    return () => {
+        unsubscribeVideos();
+        unsubscribeConfig();
+    };
   }, []);
 
   // Effect to handle verification after Stripe redirect.
@@ -200,7 +226,7 @@ export default function App() {
       console.error("Could not save cart to local storage", e);
     }
   }, [cart]);
-
+  
   // Effect to persist favorites to localStorage.
   useEffect(() => {
     try {
@@ -315,6 +341,12 @@ export default function App() {
       }
     };
   }, [searchTerm]);
+
+  const allAvailableCategories = useMemo(() => {
+    const dynamicCategories = new Set(videos.flatMap(v => v.categories));
+    const combined = new Set([...BASE_CATEGORIES, ...dynamicCategories]);
+    return Array.from(combined).filter(cat => !hiddenCategories.includes(cat)).sort();
+  }, [videos, hiddenCategories]);
 
   const filteredAndSortedVideos = useMemo(() => {
     let filtered = videos;
@@ -517,6 +549,7 @@ export default function App() {
         onPurchasesClick={openPurchasesPanel}
         isAdmin={isAdmin}
         onUploadClick={() => setIsUploadPanelOpen(true)}
+        onManageCategoriesClick={() => setIsCategoryManagerOpen(true)}
       />
 
       <main className="container mx-auto px-4 py-8">
@@ -524,7 +557,7 @@ export default function App() {
         
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
           <CategoryFilter
-            categories={['All', 'Free', ...CATEGORIES]}
+            categories={['All', 'Free', ...allAvailableCategories]}
             selectedCategory={selectedCategory}
             onSelectCategory={(cat) => { setSelectedCategory(cat); setPagesLoaded(1); }}
           />
@@ -579,6 +612,12 @@ export default function App() {
       {isAboutModalOpen && <AboutModal onClose={() => setIsAboutModalOpen(false)} />}
       {isLicenseModalOpen && <LicenseModal onClose={() => setIsLicenseModalOpen(false)} />}
       {isUploadPanelOpen && <UploadPanel onClose={() => setIsUploadPanelOpen(false)} />}
+      {isCategoryManagerOpen && <CategoryManagerPanel 
+          videos={videos} 
+          hiddenCategories={hiddenCategories}
+          onClose={() => setIsCategoryManagerOpen(false)} 
+      />}
+
 
       {selectedVideo && (
         <VideoPlayerModal
