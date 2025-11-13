@@ -3,7 +3,7 @@ import type { VideoFile } from '../types';
 import { CATEGORIES } from '../constants';
 import { 
   XIcon, TagIcon, InfoIcon, EditIcon, CartIcon, CheckIcon, StarIcon, TrashIcon, WarningIcon, 
-  ShareIcon, ClipboardIcon, TwitterXIcon, FacebookIcon, RedditIcon, WhatsAppIcon, SparklesIcon
+  ShareIcon, ClipboardIcon, TwitterXIcon, FacebookIcon, RedditIcon, WhatsAppIcon, SparklesIcon, DownloadIcon
 } from './Icons';
 import { getCachedVideoUrl } from '../services/videoCacheService';
 import { getRelatedVideos } from '../services/geminiService';
@@ -17,6 +17,7 @@ interface VideoPlayerModalProps {
   onVideoUpdate: (video: VideoFile) => void;
   onVideoDelete: (videoId: string) => void;
   onAddToCart: (videoId: string) => void;
+  onGetFreeItem: (videoId: string) => void;
   isInCart: boolean;
   isPurchased: boolean;
   isAdmin: boolean;
@@ -27,7 +28,7 @@ const formLabelClass = "block text-sm font-medium text-gray-300 mb-1";
 const shareButtonClass = "p-2 rounded-full bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
 
-export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, allVideos, onClose, onVideoSelect, onVideoUpdate, onVideoDelete, onAddToCart, isInCart, isPurchased, isAdmin }) => {
+export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, allVideos, onClose, onVideoSelect, onVideoUpdate, onVideoDelete, onAddToCart, onGetFreeItem, isInCart, isPurchased, isAdmin }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableVideo, setEditableVideo] = useState<VideoFile>(video);
   const [keywordsInput, setKeywordsInput] = useState('');
@@ -123,6 +124,36 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, allVi
     });
   };
 
+  const renderActionButton = () => {
+    if (isPurchased) {
+      return (
+        <button disabled className="w-full py-3 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed bg-indigo-600">
+          <CheckIcon className="w-6 h-6" /> Owned
+        </button>
+      );
+    }
+    if (video.isFree) {
+      return (
+        <button onClick={() => onGetFreeItem(video.id)} className="w-full py-3 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700">
+          <DownloadIcon className="w-6 h-6" /> Download for Free
+        </button>
+      );
+    }
+    if (isInCart) {
+      return (
+        <button disabled className="w-full py-3 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed bg-indigo-600">
+          <CheckIcon className="w-6 h-6" /> Added to Cart
+        </button>
+      );
+    }
+    return (
+       <button onClick={() => onAddToCart(video.id)} className="w-full py-3 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700">
+          <CartIcon className="w-6 h-6" /> Add to Cart - ${video.price.toFixed(2)}
+      </button>
+    );
+  };
+
+
   const shareUrl = window.location.href;
   const encodedShareUrl = encodeURIComponent(shareUrl);
   const encodedTitle = encodeURIComponent(video.title);
@@ -190,7 +221,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, allVi
                 ) : (
                   <>
                     {isAdmin && (<button onClick={() => setIsEditing(true)} className="w-full py-2 mb-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"><EditIcon className="w-5 h-5" />Edit Details</button>)}
-                    <button onClick={() => onAddToCart(video.id)} disabled={isInCart || isPurchased} className="w-full py-3 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed bg-indigo-600 hover:bg-indigo-700">{isPurchased ? <><CheckIcon className="w-6 h-6" /> Owned</> : isInCart ? <><CheckIcon className="w-6 h-6" /> Added to Cart</> : <><CartIcon className="w-6 h-6" /> Add to Cart - {video.isFree ? 'Free' : `$${video.price.toFixed(2)}`}</>}</button>
+                    {renderActionButton()}
                     <div className="mt-6"><h4 className="text-sm font-semibold text-gray-400 flex items-center gap-2"><ShareIcon className="w-5 h-5" />Share this video</h4><div className="mt-3 flex items-center gap-3"><button onClick={handleCopyLink} title={isLinkCopied ? "Copied!" : "Copy link"} className={`${shareButtonClass} ${isLinkCopied ? 'bg-green-600 text-white' : ''}`}>{isLinkCopied ? <CheckIcon className="w-5 h-5" /> : <ClipboardIcon className="w-5 h-5" />}</button><a href={`https://twitter.com/intent/tweet?text=${tweetText}&url=${encodedShareUrl}&via=CreateViralAI`} target="_blank" rel="noopener noreferrer" title="Share on X" className={shareButtonClass}><TwitterXIcon className="w-5 h-5" /></a><a href={`https://www.facebook.com/sharer/sharer.php?u=${encodedShareUrl}`} target="_blank" rel="noopener noreferrer" title="Share on Facebook" className={shareButtonClass}><FacebookIcon className="w-5 h-5" /></a><a href={`https://www.reddit.com/submit?url=${encodedShareUrl}&title=${encodedTitle}`} target="_blank" rel="noopener noreferrer" title="Share on Reddit" className={shareButtonClass}><RedditIcon className="w-5 h-5" /></a><a href={`https://api.whatsapp.com/send?text=${tweetText}%20${encodedShareUrl}`} target="_blank" rel="noopener noreferrer" title="Share on WhatsApp" className={shareButtonClass}><WhatsAppIcon className="w-5 h-5" /></a></div></div>
                   </>
                 )}
