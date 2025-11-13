@@ -8,12 +8,13 @@ interface VideoCardProps {
   video: VideoFile;
   onSelect: () => void;
   onAddToCart: () => void;
+  onGetFreeItem: () => void;
   isInCart: boolean;
   isPurchased: boolean;
   isAdmin: boolean;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, isInCart, isPurchased, isAdmin }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCart, onGetFreeItem, isInCart, isPurchased, isAdmin }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
   
@@ -102,17 +103,59 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
     };
   }, []);
 
-  const handleCartClick = (e: React.MouseEvent) => {
+  const handleActionClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isInCart && !isPurchased) {
-      onAddToCart();
+    if (isPurchased) return;
+
+    if (video.isFree) {
+      onGetFreeItem();
+    } else {
+      if (!isInCart) {
+        onAddToCart();
+      }
     }
   };
+
 
   const displayKeywords = video.keywords
     .flatMap(kw => kw.split(/[,;]/))
     .map(k => k.trim())
     .filter(Boolean);
+
+  const renderActionButton = () => {
+    if (isPurchased) {
+      return {
+        icon: <DownloadIcon className="w-5 h-5 text-white" />,
+        label: "Owned",
+        className: "bg-green-500 cursor-default",
+        disabled: true,
+      };
+    }
+    if (video.isFree) {
+      return {
+        icon: <DownloadIcon className="w-5 h-5 text-white" />,
+        label: "Get for Free",
+        className: "bg-indigo-600 hover:bg-indigo-500",
+        disabled: false,
+      };
+    }
+    if (isInCart) {
+      return {
+        icon: <CheckIcon className="w-5 h-5 text-white" />,
+        label: "Added to cart",
+        className: "bg-green-500 cursor-default",
+        disabled: true,
+      };
+    }
+    return {
+      icon: <CartIcon className="w-5 h-5 text-white" />,
+      label: "Add to cart",
+      className: "bg-indigo-600 hover:bg-indigo-500",
+      disabled: false,
+    };
+  };
+
+  const actionButton = renderActionButton();
 
   return (
     <div 
@@ -165,16 +208,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
           {video.isFree ? 'Free' : `$${video.price.toFixed(2)}`}
         </div>
         <button
-          onClick={handleCartClick}
-          disabled={isInCart || isPurchased}
-          className={`absolute bottom-2 right-2 p-2 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100 transform group-hover:scale-110
-            ${isInCart || isPurchased
-              ? 'bg-green-500 cursor-default' 
-              : 'bg-indigo-600 hover:bg-indigo-500'
-            }`}
-          aria-label={isPurchased ? "Owned" : isInCart ? "Added to cart" : "Add to cart"}
+          onClick={handleActionClick}
+          disabled={actionButton.disabled}
+          className={`absolute bottom-2 right-2 p-2 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100 transform group-hover:scale-110 ${actionButton.className}`}
+          aria-label={actionButton.label}
         >
-          {isPurchased ? <DownloadIcon className="w-5 h-5 text-white" /> : isInCart ? <CheckIcon className="w-5 h-5 text-white" /> : <CartIcon className="w-5 h-5 text-white" />}
+          {actionButton.icon}
         </button>
       </div>
       <div className="p-4">
