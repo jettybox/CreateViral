@@ -8,7 +8,7 @@ import { VideoGrid } from './components/VideoGrid';
 import { VideoPlayerModal } from './components/VideoPlayerModal';
 import { CartPanel } from './components/CartPanel';
 import { PurchasesPanel } from './components/PurchasesPanel';
-import { FavoritesPanel } from './components/FavoritesPanel';
+import { FavoritesPanel } from './components/FavoritesPanel.tsx';
 import { UploadPanel } from './components/UploadPanel';
 import { SortDropdown, SortOption } from './components/SortDropdown';
 import type { VideoFile } from './types';
@@ -222,7 +222,7 @@ export default function App() {
     try {
       localStorage.setItem('downloadedVideoIds', JSON.stringify(downloadedVideoIds));
     } catch (e) {
-      console.error("Could not save downloaded videos to local storage", e);
+      console.error("Could not save downloaded videos from local storage", e);
     }
   }, [downloadedVideoIds]);
 
