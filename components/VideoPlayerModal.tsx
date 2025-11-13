@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import type { VideoFile } from '../types';
 import { CATEGORIES } from '../constants';
-import { XIcon, TagIcon, InfoIcon, CategoryIcon, EditIcon, CartIcon, CheckIcon, StarIcon, TrashIcon, WarningIcon } from './Icons';
+import { 
+  XIcon, TagIcon, InfoIcon, EditIcon, CartIcon, CheckIcon, StarIcon, TrashIcon, WarningIcon, 
+  ShareIcon, ClipboardIcon, TwitterXIcon, FacebookIcon, RedditIcon, WhatsAppIcon 
+} from './Icons';
 import { getCachedVideoUrl } from '../services/videoCacheService';
 import { Spinner } from './Spinner';
 
@@ -18,6 +21,8 @@ interface VideoPlayerModalProps {
 
 const formInputClass = "w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white disabled:opacity-50";
 const formLabelClass = "block text-sm font-medium text-gray-300 mb-1";
+const shareButtonClass = "p-2 rounded-full bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500";
+
 
 export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClose, onVideoUpdate, onVideoDelete, onAddToCart, isInCart, isPurchased, isAdmin }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -26,6 +31,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
   const [videoError, setVideoError] = useState(false);
+  const [isLinkCopied, setIsLinkCopied] = useState(false);
 
   useEffect(() => {
     setEditableVideo(video);
@@ -78,6 +84,16 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
     setKeywordsInput(video.keywords.join(', ')); // Reset keyword input as well
     setIsEditing(false);
   };
+  
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+        setIsLinkCopied(true);
+        setTimeout(() => setIsLinkCopied(false), 2500);
+    }, (err) => {
+        console.error('Could not copy link: ', err);
+        alert('Failed to copy link.');
+    });
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -107,6 +123,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
         return { ...prev, categories: newCategories };
     });
   };
+
+  const shareUrl = window.location.href;
+  const encodedShareUrl = encodeURIComponent(shareUrl);
+  const encodedTitle = encodeURIComponent(video.title);
+  const tweetText = encodeURIComponent(`Check out this awesome video clip "${video.title}" from CreateViral.ai!`);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 animate-fade-in">
@@ -297,6 +318,29 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
                   >
                     {isPurchased ? <><CheckIcon className="w-6 h-6" /> Owned</> : isInCart ? <><CheckIcon className="w-6 h-6" /> Added to Cart</> : <><CartIcon className="w-6 h-6" /> Add to Cart - {video.isFree ? 'Free' : `$${video.price.toFixed(2)}`}</>}
                   </button>
+                  <div className="mt-6">
+                      <h4 className="text-sm font-semibold text-gray-400 flex items-center gap-2">
+                          <ShareIcon className="w-5 h-5" />
+                          Share this video
+                      </h4>
+                      <div className="mt-3 flex items-center gap-3">
+                          <button onClick={handleCopyLink} title={isLinkCopied ? "Copied!" : "Copy link"} className={`${shareButtonClass} ${isLinkCopied ? 'bg-green-600 text-white' : ''}`}>
+                              {isLinkCopied ? <CheckIcon className="w-5 h-5" /> : <ClipboardIcon className="w-5 h-5" />}
+                          </button>
+                          <a href={`https://twitter.com/intent/tweet?text=${tweetText}&url=${encodedShareUrl}&via=CreateViralAI`} target="_blank" rel="noopener noreferrer" title="Share on X" className={shareButtonClass}>
+                              <TwitterXIcon className="w-5 h-5" />
+                          </a>
+                           <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodedShareUrl}`} target="_blank" rel="noopener noreferrer" title="Share on Facebook" className={shareButtonClass}>
+                              <FacebookIcon className="w-5 h-5" />
+                          </a>
+                          <a href={`https://www.reddit.com/submit?url=${encodedShareUrl}&title=${encodedTitle}`} target="_blank" rel="noopener noreferrer" title="Share on Reddit" className={shareButtonClass}>
+                              <RedditIcon className="w-5 h-5" />
+                          </a>
+                           <a href={`https://api.whatsapp.com/send?text=${tweetText}%20${encodedShareUrl}`} target="_blank" rel="noopener noreferrer" title="Share on WhatsApp" className={shareButtonClass}>
+                              <WhatsAppIcon className="w-5 h-5" />
+                          </a>
+                      </div>
+                  </div>
                 </>
               )}
             </div>
