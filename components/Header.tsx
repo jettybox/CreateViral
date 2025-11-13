@@ -1,6 +1,7 @@
 import React from 'react';
-import { FilmIcon, SearchIcon, ExclamationCircleIcon, CartIcon, UploadIcon, QuestionMarkCircleIcon, DownloadIcon, HeartIcon } from './Icons';
+import { FilmIcon, SearchIcon, ExclamationCircleIcon, CartIcon, UploadIcon, QuestionMarkCircleIcon, DownloadIcon, HeartIcon, TagIcon } from './Icons';
 import { Spinner } from './Spinner';
+import { useAdminMode } from '../hooks/useAdminMode';
 
 interface HeaderProps {
   onSearch: (term: string) => void;
@@ -13,8 +14,8 @@ interface HeaderProps {
   onFavoritesClick: () => void;
   undownloadedItemCount: number;
   onPurchasesClick: () => void;
-  isAdmin: boolean;
   onUploadClick: () => void;
+  onManageCategoriesClick: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
@@ -28,9 +29,11 @@ export const Header: React.FC<HeaderProps> = ({
   onFavoritesClick,
   undownloadedItemCount,
   onPurchasesClick,
-  isAdmin, 
-  onUploadClick 
+  onUploadClick,
+  onManageCategoriesClick
 }) => {
+  const isAdmin = useAdminMode();
+
   return (
     <header className="bg-gray-800/50 backdrop-blur-sm sticky top-0 z-40 shadow-lg">
       <div className="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center">
@@ -61,13 +64,24 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
           {isAdmin && (
-             <button
+            <>
+              <button
+                onClick={onManageCategoriesClick}
+                className="flex-shrink-0 p-2 bg-gray-600 hover:bg-gray-500 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-label="Manage categories with AI"
+                title="Manage Categories"
+              >
+                <TagIcon className="w-6 h-6 text-white" />
+              </button>
+              <button
                 onClick={onUploadClick}
                 className="flex-shrink-0 p-2 bg-indigo-600 hover:bg-indigo-500 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 aria-label="Upload and analyze new video"
+                title="Bulk Import Videos"
               >
                 <UploadIcon className="w-6 h-6 text-white" />
               </button>
+            </>
           )}
           <button
             onClick={onLicenseClick}
