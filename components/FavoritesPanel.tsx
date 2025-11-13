@@ -1,16 +1,19 @@
 import React from 'react';
 import type { VideoFile } from '../types';
-import { XIcon, HeartIcon, CartIcon } from './Icons';
+import { XIcon, HeartIcon, CartIcon, CheckIcon, DownloadIcon } from './Icons';
 
 interface FavoritesPanelProps {
   items: VideoFile[];
+  cart: string[];
+  purchasedVideoIds: string[];
   onClose: () => void;
   onRemoveItem: (videoId: string) => void;
   onAddToCart: (videoId: string) => void;
+  onGetFreeItem: (videoId: string) => void;
   onViewItem: (video: VideoFile) => void;
 }
 
-export const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ items, onClose, onRemoveItem, onAddToCart, onViewItem }) => {
+export const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ items, cart, purchasedVideoIds, onClose, onRemoveItem, onAddToCart, onGetFreeItem, onViewItem }) => {
   return (
     <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
       <div className="absolute inset-0 overflow-hidden">
@@ -36,42 +39,76 @@ export const FavoritesPanel: React.FC<FavoritesPanelProps> = ({ items, onClose, 
                   <div className="flow-root">
                     {items.length > 0 ? (
                       <ul role="list" className="-my-6 divide-y divide-gray-700">
-                        {items.map((item) => (
-                          <li key={item.id} className="py-6 flex">
-                            <div className="flex-shrink-0 w-24 h-14 border border-gray-700 rounded-md overflow-hidden bg-gray-900 cursor-pointer" onClick={() => onViewItem(item)}>
-                              <img 
-                                src={item.thumbnail || ''} 
-                                alt={item.title} 
-                                className="w-full h-full object-cover" 
-                                referrerPolicy="no-referrer"
-                                onError={(e) => (e.currentTarget.style.display = 'none')}
-                              />
-                            </div>
-                            <div className="ml-4 flex-1 flex flex-col">
-                              <div>
-                                <div className="flex justify-between text-base font-medium text-white">
-                                  <h3 className="cursor-pointer hover:underline" onClick={() => onViewItem(item)}>{item.title}</h3>
-                                  <p className="ml-4">{item.isFree ? 'Free' : `$${item.price.toFixed(2)}`}</p>
-                                </div>
-                                <p className="mt-1 text-sm text-gray-400 truncate">{item.categories.join(', ')}</p>
+                        {items.map((item) => {
+                          const isPurchased = purchasedVideoIds.includes(item.id);
+                          const isInCart = cart.includes(item.id);
+
+                          let actionButton;
+                          if (isPurchased) {
+                            actionButton = (
+                              <div className="flex items-center gap-1 text-sm text-green-400">
+                                <CheckIcon className="w-4 h-4" /> Owned
                               </div>
-                              <div className="flex-1 flex items-end justify-between text-sm">
-                                <button
-                                  onClick={() => onAddToCart(item.id)}
-                                  type="button"
-                                  className="font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
-                                >
-                                  <CartIcon className="w-4 h-4" /> Add to Cart
-                                </button>
-                                <div className="flex">
-                                  <button onClick={() => onRemoveItem(item.id)} type="button" className="font-medium text-gray-400 hover:text-white">
-                                    Remove
-                                  </button>
+                            );
+                          } else if (isInCart) {
+                            actionButton = (
+                              <div className="flex items-center gap-1 text-sm text-gray-400">
+                                <CheckIcon className="w-4 h-4" /> In Cart
+                              </div>
+                            );
+                          } else if (item.isFree) {
+                            actionButton = (
+                              <button
+                                onClick={() => onGetFreeItem(item.id)}
+                                type="button"
+                                className="font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                              >
+                                <DownloadIcon className="w-4 h-4" /> Get for Free
+                              </button>
+                            );
+                          } else {
+                            actionButton = (
+                              <button
+                                onClick={() => onAddToCart(item.id)}
+                                type="button"
+                                className="font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                              >
+                                <CartIcon className="w-4 h-4" /> Add to Cart
+                              </button>
+                            );
+                          }
+
+                          return (
+                            <li key={item.id} className="py-6 flex">
+                              <div className="flex-shrink-0 w-24 h-14 border border-gray-700 rounded-md overflow-hidden bg-gray-900 cursor-pointer" onClick={() => onViewItem(item)}>
+                                <img 
+                                  src={item.thumbnail || ''} 
+                                  alt={item.title} 
+                                  className="w-full h-full object-cover" 
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                                />
+                              </div>
+                              <div className="ml-4 flex-1 flex flex-col">
+                                <div>
+                                  <div className="flex justify-between text-base font-medium text-white">
+                                    <h3 className="cursor-pointer hover:underline" onClick={() => onViewItem(item)}>{item.title}</h3>
+                                    <p className="ml-4">{item.isFree ? 'Free' : `$${item.price.toFixed(2)}`}</p>
+                                  </div>
+                                  <p className="mt-1 text-sm text-gray-400 truncate">{item.categories.join(', ')}</p>
+                                </div>
+                                <div className="flex-1 flex items-end justify-between text-sm">
+                                  {actionButton}
+                                  <div className="flex">
+                                    <button onClick={() => onRemoveItem(item.id)} type="button" className="font-medium text-gray-400 hover:text-white">
+                                      Remove
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </ul>
                     ) : (
                       <div className="text-center py-10">
