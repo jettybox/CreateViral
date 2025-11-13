@@ -3,6 +3,7 @@ export const CATEGORIES = [
   'Backgrounds',
   'Business',
   'Cinematic',
+  'Christmas',
   'Futuristic',
   'Green Screen',
   'Historical',
