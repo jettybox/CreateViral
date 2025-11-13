@@ -547,7 +547,6 @@ export default function App() {
         onFavoritesClick={openFavoritesPanel}
         undownloadedItemCount={purchasedItems.filter(p => !downloadedVideoIds.includes(p.id)).length}
         onPurchasesClick={openPurchasesPanel}
-        isAdmin={isAdmin}
         onUploadClick={() => setIsUploadPanelOpen(true)}
         onManageCategoriesClick={() => setIsCategoryManagerOpen(true)}
       />
