@@ -8,7 +8,7 @@ import { VideoGrid } from './components/VideoGrid';
 import { VideoPlayerModal } from './components/VideoPlayerModal';
 import { CartPanel } from './components/CartPanel';
 import { PurchasesPanel } from './components/PurchasesPanel';
-import { FavoritesPanel } from './components/FavoritesPanel.tsx';
+import { FavoritesPanel } from './components/FavoritesPanel';
 import { UploadPanel } from './components/UploadPanel';
 import { SortDropdown, SortOption } from './components/SortDropdown';
 import type { VideoFile } from './types';
