@@ -33,25 +33,26 @@ export const Header: React.FC<HeaderProps> = ({
   onManageCategoriesClick
 }) => {
   const isAdmin = useAdminMode();
+  const buttonClass = "flex-shrink-0 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500";
 
   return (
-    <header className="bg-gray-800/50 backdrop-blur-sm sticky top-0 z-40 shadow-lg">
+    <header className="bg-black/20 sticky top-0 z-40 border-b border-white/10">
       <div className="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center">
         <div className="flex items-center gap-3 mb-4 md:mb-0">
-          <FilmIcon className="w-10 h-10 text-indigo-400 flex-shrink-0" />
+          <FilmIcon className="w-10 h-10 text-amber-400 flex-shrink-0" />
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-wider">
-              CreateViral.ai
+            <h1 className="font-heading text-3xl font-bold text-white tracking-tighter">
+              CreateViral<span className="text-amber-400">.ai</span>
             </h1>
-            <p className="text-xs text-gray-400 tracking-wide">AI-Powered Creative Assets</p>
+            <p className="text-xs text-gray-400 tracking-wide -mt-1">AI-Powered Creative Assets</p>
           </div>
         </div>
-        <div className="flex items-center gap-4 w-full md:w-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto">
           <div className="relative flex-grow md:w-80">
             <input
               type="text"
               placeholder="Search assets..."
-              className="w-full pl-10 pr-10 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+              className="w-full pl-10 pr-10 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all text-white"
               onChange={(e) => onSearch(e.target.value)}
             />
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -67,7 +68,7 @@ export const Header: React.FC<HeaderProps> = ({
             <>
               <button
                 onClick={onManageCategoriesClick}
-                className="flex-shrink-0 p-2 bg-gray-600 hover:bg-gray-500 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className={buttonClass}
                 aria-label="Manage categories with AI"
                 title="Manage Categories"
               >
@@ -75,31 +76,31 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
               <button
                 onClick={onUploadClick}
-                className="flex-shrink-0 p-2 bg-indigo-600 hover:bg-indigo-500 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex-shrink-0 p-2 bg-amber-500 hover:bg-amber-400 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500"
                 aria-label="Upload and analyze new video"
                 title="Bulk Import Videos"
               >
-                <UploadIcon className="w-6 h-6 text-white" />
+                <UploadIcon className="w-6 h-6 text-black" />
               </button>
             </>
           )}
           <button
             onClick={onLicenseClick}
-            className="flex-shrink-0 p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={buttonClass}
             aria-label="Show license information"
           >
             <ExclamationCircleIcon className="w-6 h-6 text-gray-300" />
           </button>
            <button
             onClick={onAboutClick}
-            className="flex-shrink-0 p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={buttonClass}
             aria-label="About this site"
           >
             <QuestionMarkCircleIcon className="w-6 h-6 text-gray-300" />
           </button>
            <button
             onClick={onFavoritesClick}
-            className="relative flex-shrink-0 p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={`relative ${buttonClass}`}
             aria-label="Open favorites list"
           >
             <HeartIcon className="w-6 h-6 text-gray-300" />
@@ -111,7 +112,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
            <button
             onClick={onCartClick}
-            className="relative flex-shrink-0 p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={`relative ${buttonClass}`}
             aria-label="Open shopping cart"
           >
             <CartIcon className="w-6 h-6 text-gray-300" />
@@ -123,7 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={onPurchasesClick}
-            className="relative flex-shrink-0 p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={`relative ${buttonClass}`}
             aria-label="Open my downloads"
           >
             <DownloadIcon className="w-6 h-6 text-gray-300" />
