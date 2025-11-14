@@ -1,27 +1,42 @@
 import React from 'react';
-import { SparklesIcon, XIcon } from './Icons';
 
-interface DiscountBannerProps {
-  onDismiss: () => void;
-}
-
-export const DiscountBanner: React.FC<DiscountBannerProps> = ({ onDismiss }) => {
+export const DiscountBanner: React.FC = () => {
   return (
-    <div className="relative bg-indigo-600/80 backdrop-blur-sm text-white rounded-lg p-4 mb-8 flex items-center gap-4 shadow-lg border border-indigo-500/50">
-      <SparklesIcon className="w-8 h-8 text-yellow-300 flex-shrink-0" />
-      <div>
-        <h3 className="font-bold text-lg">Bundle & Save!</h3>
-        <p className="text-sm">
-          Get amazing discounts on bulk purchases. <strong>Buy 5 videos for $20</strong> (save $5) or <strong>10 videos for $35</strong> (save $15)!
-        </p>
+    <div className="text-center py-16 md:py-24 px-4 my-8 rounded-xl bg-black/20">
+      <h2 className="font-heading text-4xl md:text-6xl font-extrabold text-white leading-tight">
+        Create The <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">Impossible</span>.
+      </h2>
+      <p className="mt-4 max-w-2xl mx-auto text-lg text-gray-300">
+        Video Elements & VFX for your next viral project.
+      </p>
+      <div className="mt-8">
+        <a 
+          href="#/free-elements"
+          onClick={(e) => {
+            e.preventDefault();
+            const freeButton = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent === 'Free');
+            freeButton?.click();
+            const mainElement = document.querySelector('main');
+            if (mainElement) {
+              window.scrollTo({ top: mainElement.offsetTop, behavior: 'smooth' });
+            }
+          }}
+          className="font-heading inline-block bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-black shadow-lg"
+        >
+          Download Free Elements
+        </a>
       </div>
-      <button 
-        onClick={onDismiss} 
-        className="absolute top-2 right-2 p-1 text-indigo-200 hover:text-white rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white"
-        aria-label="Dismiss banner"
-      >
-        <XIcon className="w-5 h-5" />
-      </button>
+      <div className="mt-6">
+        <div className="flex justify-center items-center gap-4">
+          <button disabled className="font-heading bg-transparent border border-gray-600 text-gray-400 font-bold py-3 px-8 rounded-lg transition-colors opacity-50 cursor-not-allowed">
+            Login
+          </button>
+          <button disabled className="font-heading bg-transparent border border-gray-600 text-gray-400 font-bold py-3 px-8 rounded-lg transition-colors opacity-50 cursor-not-allowed">
+            Subscribe
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 mt-2">Login & Subscription features coming soon!</p>
+      </div>
     </div>
   );
 };
