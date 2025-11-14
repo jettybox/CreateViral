@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { writeBatch, doc, setDoc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
 import { db } from '../firebase-config';
 import type { VideoFile } from '../types';
-import { XIcon, TagIcon, CheckIcon, SparklesIcon, WarningIcon, EyeIcon, EyeSlashIcon, RefreshIcon } from './Icons';
+import { XIcon, TagIcon, CheckIcon, SparklesIcon, WarningIcon, EyeIcon, EyeSlashIcon, RefreshIcon, KeyIcon } from './Icons';
 import { Spinner } from './Spinner';
-import { categorizeVideo, isApiKeyAvailable } from '../services/geminiService';
+import { categorizeVideo, isApiKeyAvailable, setApiKey as saveApiKeyToService } from '../services/geminiService';
 
 interface CategoryManagerPanelProps {
   videos: VideoFile[];
@@ -22,8 +22,14 @@ export const CategoryManagerPanel: React.FC<CategoryManagerPanelProps> = ({ vide
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [results, setResults] = useState({ added: 0, skipped: 0 });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isGeminiAvailable, setIsGeminiAvailable] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
 
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setIsGeminiAvailable(isApiKeyAvailable());
+  }, []);
 
   const isExistingCategory = useMemo(() => {
     return allCategories.map(c => c.toLowerCase()).includes(newCategoryName.trim().toLowerCase());
@@ -57,6 +63,14 @@ export const CategoryManagerPanel: React.FC<CategoryManagerPanelProps> = ({ vide
     setTimeout(() => descriptionInputRef.current?.focus(), 100);
   };
 
+  const handleSaveApiKey = () => {
+    if (apiKeyInput.trim()) {
+      saveApiKeyToService(apiKeyInput.trim());
+      setIsGeminiAvailable(true);
+      setApiKeyInput('');
+    }
+  };
+
   const startCategorizationProcess = async () => {
     const categoryNameToProcess = newCategoryName.trim();
 
@@ -66,7 +80,7 @@ export const CategoryManagerPanel: React.FC<CategoryManagerPanelProps> = ({ vide
     }
     
     if (!isApiKeyAvailable()) {
-      setErrorMessage('Gemini API key is not configured. Please set it in the Bulk Importer panel.');
+      setErrorMessage('Gemini API key is not configured. Please set it in the form below to enable this feature.');
       setStatus('error');
       return;
     }
@@ -257,34 +271,27 @@ export const CategoryManagerPanel: React.FC<CategoryManagerPanelProps> = ({ vide
                 </p>
                 <div className="max-h-48 overflow-y-auto pr-2 bg-gray-900/50 p-3 rounded-md border border-gray-600">
                     <ul className="space-y-1">
-                        {allCategories.map(category => {
-                            const isHidden = hiddenCategories.includes(category);
-                            return (
-                                <li key={category} className="flex justify-between items-center text-sm p-1 rounded-md hover:bg-gray-700/50">
-                                    <span className={isHidden ? 'text-gray-500 italic' : 'text-gray-200'}>
-                                        {category}
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => handleInitiateRescan(category)}
-                                            className="p-2 rounded-full text-gray-400 hover:text-indigo-400 hover:bg-gray-700 transition-colors"
-                                            aria-label={`Re-scan for ${category}`}
-                                            title={`Re-scan for ${category}`}
-                                        >
-                                            <RefreshIcon className="w-5 h-5" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleToggleVisibility(category)}
-                                            className={`p-2 rounded-full transition-colors ${isHidden ? 'text-gray-500 hover:text-white' : 'text-gray-300 hover:text-white'}`}
-                                            aria-label={isHidden ? `Show ${category}` : `Hide ${category}`}
-                                            title={isHidden ? `Show ${category}` : `Hide ${category}`}
-                                        >
-                                            {isHidden ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
-                                        </button>
-                                    </div>
-                                </li>
-                            );
-                        })}
+                        {allCategories.sort().map(category => (
+                          <li key={category} className="flex items-center justify-between p-2 rounded-md hover:bg-gray-700/50">
+                            <span className="text-white font-medium">{category}</span>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handleToggleVisibility(category)}
+                                    className="p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-600 transition-colors"
+                                    title={hiddenCategories.includes(category) ? 'Show category' : 'Hide category'}
+                                >
+                                    {hiddenCategories.includes(category) ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                                </button>
+                                <button
+                                    onClick={() => handleInitiateRescan(category)}
+                                    className="p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-600 transition-colors"
+                                    title={`Re-scan library for "${category}"`}
+                                >
+                                    <RefreshIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+                          </li>
+                        ))}
                     </ul>
                 </div>
             </div>
@@ -293,40 +300,59 @@ export const CategoryManagerPanel: React.FC<CategoryManagerPanelProps> = ({ vide
     }
   };
 
-  const renderFooter = () => {
-      if (status !== 'idle') {
-        return null;
-      }
-      const isReady = newCategoryName.trim() && newCategoryDescription.trim();
-      return (
-         <div className="p-4 bg-gray-800/50 border-t border-gray-700">
-            <button
-                onClick={startCategorizationProcess}
-                disabled={!isReady}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-                <SparklesIcon className="w-5 h-5" />
-                {isExistingCategory ? 'Re-scan Category' : 'Scan & Add New Category'}
-            </button>
-         </div>
-      );
-  }
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 animate-fade-in">
       <div className="bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
         <div className="flex justify-between items-center p-4 border-b border-gray-700 flex-shrink-0">
-          <h2 className="text-xl font-bold text-white">Manage Categories</h2>
+          <h2 className="text-xl font-bold text-white">AI Category Manager</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <XIcon className="w-6 h-6" />
           </button>
         </div>
         
-        <div className="overflow-y-auto" ref={node => node?.scrollTo(0,0)}>
+        <div className="overflow-y-auto">
             {renderContent()}
         </div>
         
-        {renderFooter()}
+        {status !== 'scanning' && status !== 'success' && (
+          <div className="p-4 bg-gray-800/50 border-t border-gray-700 flex-shrink-0">
+              {isGeminiAvailable ? (
+                  <button
+                      onClick={startCategorizationProcess}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50"
+                      // FIX: Removed redundant `status === 'scanning'` check which is impossible in this branch, causing a TS error.
+                      disabled={!newCategoryName.trim() || !newCategoryDescription.trim()}
+                  >
+                      <SparklesIcon className="w-5 h-5" />
+                      {isExistingCategory ? 'Re-scan Category' : 'Create & Scan'}
+                  </button>
+              ) : (
+                  <div className="p-3 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                      <label htmlFor="api-key-input-cat-manager" className="block text-xs font-medium text-yellow-300 mb-1">Set Gemini API Key to Scan</label>
+                      <div className="flex gap-2">
+                          <div className="relative flex-grow">
+                               <KeyIcon className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                              <input
+                                  type="password"
+                                  id="api-key-input-cat-manager"
+                                  value={apiKeyInput}
+                                  onChange={(e) => setApiKeyInput(e.target.value)}
+                                  placeholder="Paste API key here"
+                                  className="w-full pl-8 pr-2 py-1.5 text-sm bg-gray-900/50 border border-yellow-500/50 rounded-md focus:outline-none focus:ring-1 focus:ring-yellow-400 text-white"
+                              />
+                          </div>
+                          <button
+                              onClick={handleSaveApiKey}
+                              disabled={!apiKeyInput.trim()}
+                              className="px-3 py-1.5 text-sm bg-yellow-500 text-gray-900 font-bold rounded-md hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 disabled:opacity-50"
+                          >
+                              Save
+                          </button>
+                      </div>
+                  </div>
+              )}
+          </div>
+        )}
       </div>
     </div>
   );
