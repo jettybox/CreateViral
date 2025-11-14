@@ -45,6 +45,7 @@ export default function App() {
   const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
   const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [allCategories, setAllCategories] = useState<string[]>(BASE_CATEGORIES);
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
   const [cart, setCart] = useState<string[]>(() => {
     // Initialize state from localStorage to persist across sessions.
@@ -132,20 +133,35 @@ export default function App() {
       setIsLoading(false);
     });
 
-    // New listener for site configuration, including hidden categories.
+    // Listener for site configuration, including the master category list and hidden categories.
     const configDocRef = doc(db, 'site_config', 'main');
     const unsubscribeConfig = onSnapshot(configDocRef, (snapshot) => {
         if (snapshot.exists()) {
             const configData = snapshot.data();
+            
+            // Set hidden categories
             const hidden = configData.hiddenCategories;
             if (Array.isArray(hidden) && hidden.every(item => typeof item === 'string')) {
                 setHiddenCategories(hidden);
             } else {
                 setHiddenCategories([]);
             }
+
+            // Set master category list
+            const masterList = configData.allCategories;
+            if (Array.isArray(masterList) && masterList.every(item => typeof item === 'string')) {
+                // Combine with base categories for resilience, then sort.
+                const combined = [...new Set([...BASE_CATEGORIES, ...masterList])].sort();
+                setAllCategories(combined);
+            } else {
+                // Fallback to just base categories if the list doesn't exist in Firestore yet.
+                setAllCategories([...BASE_CATEGORIES].sort());
+            }
+
         } else {
-            console.log("Site config document does not exist, using default visibility.");
+            console.log("Site config document does not exist, using default visibility and categories.");
             setHiddenCategories([]);
+            setAllCategories([...BASE_CATEGORIES].sort());
         }
     }, (error) => {
         console.error("Error fetching site config:", error);
@@ -343,10 +359,10 @@ export default function App() {
   }, [searchTerm]);
 
   const allAvailableCategories = useMemo(() => {
-    const dynamicCategories = new Set(videos.flatMap(v => v.categories));
-    const combined = new Set([...BASE_CATEGORIES, ...dynamicCategories]);
-    return Array.from(combined).filter(cat => !hiddenCategories.includes(cat)).sort();
-  }, [videos, hiddenCategories]);
+    // This is now much simpler and more performant.
+    return allCategories.filter(cat => !hiddenCategories.includes(cat));
+  }, [allCategories, hiddenCategories]);
+
 
   const filteredAndSortedVideos = useMemo(() => {
     let filtered = videos;
@@ -389,7 +405,7 @@ export default function App() {
       case 'newest':
         return filtered.sort((a, b) => b.createdAt - a.createdAt);
       case 'price-asc':
-        return filtered.sort((a, b) => a.price - a.price);
+        return filtered.sort((a, b) => a.price - b.price);
       case 'price-desc':
         return filtered.sort((a, b) => b.price - a.price);
       default:
@@ -610,9 +626,13 @@ export default function App() {
 
       {isAboutModalOpen && <AboutModal onClose={() => setIsAboutModalOpen(false)} />}
       {isLicenseModalOpen && <LicenseModal onClose={() => setIsLicenseModalOpen(false)} />}
-      {isUploadPanelOpen && <UploadPanel onClose={() => setIsUploadPanelOpen(false)} />}
+      {isUploadPanelOpen && <UploadPanel 
+          onClose={() => setIsUploadPanelOpen(false)} 
+          allCategories={allCategories}
+      />}
       {isCategoryManagerOpen && <CategoryManagerPanel 
           videos={videos} 
+          allCategories={allCategories}
           hiddenCategories={hiddenCategories}
           onClose={() => setIsCategoryManagerOpen(false)} 
       />}
