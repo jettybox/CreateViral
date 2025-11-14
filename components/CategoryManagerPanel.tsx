@@ -14,6 +14,7 @@ interface CategoryManagerPanelProps {
 }
 
 type Status = 'idle' | 'scanning' | 'error' | 'success';
+type PriceUpdateStatus = 'idle' | 'updating' | 'success' | 'error';
 
 export const CategoryManagerPanel: React.FC<CategoryManagerPanelProps> = ({ videos, allCategories, hiddenCategories, onClose }) => {
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -24,12 +25,74 @@ export const CategoryManagerPanel: React.FC<CategoryManagerPanelProps> = ({ vide
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isGeminiAvailable, setIsGeminiAvailable] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
-
+  
+  // State for the Global Pricing Tool
+  const [globalPrice, setGlobalPrice] = useState<string>('');
+  const [priceUpdateStatus, setPriceUpdateStatus] = useState<PriceUpdateStatus>('idle');
+  const [priceUpdateMessage, setPriceUpdateMessage] = useState<string>('');
+  const [confirmText, setConfirmText] = useState('');
+  
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setIsGeminiAvailable(isApiKeyAvailable());
   }, []);
+  
+  const handleGlobalPriceUpdate = async () => {
+    const newPrice = parseFloat(globalPrice);
+    if (isNaN(newPrice) || newPrice < 0) {
+      setPriceUpdateStatus('error');
+      setPriceUpdateMessage('Please enter a valid, non-negative price.');
+      return;
+    }
+
+    if (confirmText !== 'UPDATE') {
+        setPriceUpdateStatus('error');
+        setPriceUpdateMessage('Please type UPDATE in the confirmation box to proceed.');
+        return;
+    }
+
+    // This is the key logic: We only ever touch videos that are designated as "paid",
+    // which are those where `isFree` is false. This protects permanently free items.
+    const videosToUpdate = videos.filter(v => !v.isFree);
+
+    if (videosToUpdate.length === 0) {
+      setPriceUpdateStatus('success');
+      setPriceUpdateMessage('No paid videos found to update.');
+      return;
+    }
+    
+    setPriceUpdateStatus('updating');
+    setPriceUpdateMessage('');
+
+    try {
+      const BATCH_SIZE = 500;
+      for (let i = 0; i < videosToUpdate.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        const chunk = videosToUpdate.slice(i, i + BATCH_SIZE);
+        
+        chunk.forEach(video => {
+          const videoRef = doc(db, 'videos', video.id);
+          // We ONLY update the price. The `isFree` status for these videos is always false,
+          // which preserves their "paid" identity even when the price is temporarily $0.
+          batch.update(videoRef, { price: newPrice });
+        });
+        
+        await batch.commit();
+      }
+      
+      setPriceUpdateStatus('success');
+      setPriceUpdateMessage(`Successfully updated ${videosToUpdate.length} videos to $${newPrice.toFixed(2)}.`);
+      setGlobalPrice('');
+      setConfirmText('');
+
+    } catch (error: any) {
+      setPriceUpdateStatus('error');
+      setPriceUpdateMessage(`Failed to update prices: ${error.message}`);
+      console.error("Global price update failed:", error);
+    }
+  };
+
 
   const isExistingCategory = useMemo(() => {
     return allCategories.map(c => c.toLowerCase()).includes(newCategoryName.trim().toLowerCase());
@@ -264,7 +327,7 @@ export const CategoryManagerPanel: React.FC<CategoryManagerPanelProps> = ({ vide
 
             <div className="border-t border-gray-600 my-4"></div>
 
-            <div className="px-6 pb-6">
+            <div className="px-6 pb-2">
                 <h3 className="text-lg font-semibold text-white mb-3">Manage Categories</h3>
                 <p className="text-sm text-gray-400 mb-4">
                     Toggle visibility on the main filter or re-scan a category to include newly uploaded videos.
@@ -295,6 +358,54 @@ export const CategoryManagerPanel: React.FC<CategoryManagerPanelProps> = ({ vide
                     </ul>
                 </div>
             </div>
+
+            <div className="relative my-4 mx-6"><div className="absolute inset-0 flex items-center" aria-hidden="true"><div className="w-full border-t border-yellow-500/30" /></div><div className="relative flex justify-center"><span className="bg-gray-800 px-3 text-sm font-medium text-yellow-400 uppercase">Danger Zone</span></div></div>
+
+            <div className="px-6 pb-6 space-y-4">
+                <div>
+                    <h3 className="text-lg font-semibold text-white">Global Pricing Tool</h3>
+                    <p className="text-sm text-gray-400 mt-1">
+                        Quickly update the price for all non-free videos in the catalog. Enter '0' to make all paid items free. This action is irreversible.
+                    </p>
+                </div>
+                
+                {priceUpdateStatus === 'error' && <p className="text-sm text-red-400 p-2 bg-red-900/30 rounded-md border border-red-500/40 text-center">{priceUpdateMessage}</p>}
+                {priceUpdateStatus === 'success' && <p className="text-sm text-green-400 p-2 bg-green-900/30 rounded-md border border-green-500/40 text-center">{priceUpdateMessage}</p>}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="md:col-span-1">
+                        <label htmlFor="globalPrice" className="block text-sm font-medium text-gray-300 mb-1">New Price ($)</label>
+                        <input
+                            id="globalPrice"
+                            type="number"
+                            placeholder="e.g., 1.00 or 0"
+                            className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
+                            value={globalPrice}
+                            onChange={(e) => { setGlobalPrice(e.target.value); setPriceUpdateStatus('idle'); }}
+                            min="0"
+                            step="0.01"
+                        />
+                    </div>
+                    <div className="md:col-span-2">
+                        <label htmlFor="confirmText" className="block text-sm font-medium text-gray-300 mb-1">Type <strong className="text-yellow-400">UPDATE</strong> to confirm</label>
+                        <input
+                            id="confirmText"
+                            type="text"
+                            className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 text-white"
+                            value={confirmText}
+                            onChange={(e) => setConfirmText(e.target.value)}
+                        />
+                    </div>
+                </div>
+                 <button
+                    onClick={handleGlobalPriceUpdate}
+                    disabled={priceUpdateStatus === 'updating' || !globalPrice || confirmText !== 'UPDATE'}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-yellow-600 hover:bg-yellow-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {priceUpdateStatus === 'updating' ? <Spinner className="w-5 h-5" /> : <WarningIcon className="w-5 h-5" />}
+                    {priceUpdateStatus === 'updating' ? 'Updating Prices...' : 'Update All Video Prices'}
+                </button>
+            </div>
           </>
         );
     }
@@ -320,7 +431,6 @@ export const CategoryManagerPanel: React.FC<CategoryManagerPanelProps> = ({ vide
                   <button
                       onClick={startCategorizationProcess}
                       className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50"
-                      // FIX: Removed redundant `status === 'scanning'` check which is impossible in this branch, causing a TS error.
                       disabled={!newCategoryName.trim() || !newCategoryDescription.trim()}
                   >
                       <SparklesIcon className="w-5 h-5" />
