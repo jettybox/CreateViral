@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FilmIcon, SearchIcon, ExclamationCircleIcon, CartIcon, UploadIcon, QuestionMarkCircleIcon, DownloadIcon, HeartIcon, TagIcon } from './Icons';
 import { Spinner } from './Spinner';
 import { useAdminMode } from '../hooks/useAdminMode';
@@ -33,16 +33,27 @@ export const Header: React.FC<HeaderProps> = ({
   onManageCategoriesClick
 }) => {
   const isAdmin = useAdminMode();
+  const [isScrolled, setIsScrolled] = useState(false);
   const buttonClass = "flex-shrink-0 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500";
 
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
   return (
-    <header className="bg-black/20 sticky top-0 z-40 border-b border-white/10">
+    <header className={`sticky top-0 z-40 border-b transition-all duration-300 ${isScrolled ? 'bg-black/60 backdrop-blur-lg border-white/10 shadow-lg' : 'bg-black/20 border-transparent'}`}>
       <div className="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center">
         <div className="flex items-center gap-3 mb-4 md:mb-0">
           <FilmIcon className="w-10 h-10 text-amber-400 flex-shrink-0" />
           <div>
             <h1 className="font-heading text-3xl font-bold text-white tracking-tighter">
-              CreateViral<span className="text-amber-400">.ai</span>
+              GenieClips<span className="text-amber-400">.com</span>
             </h1>
             <p className="text-xs text-gray-400 tracking-wide -mt-1">AI-Powered Creative Assets</p>
           </div>
