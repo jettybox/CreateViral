@@ -167,7 +167,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
   return (
     <div 
       ref={cardRef}
-      className="bg-gray-800 rounded-lg overflow-hidden shadow-lg cursor-pointer group transition-all duration-300 transform hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/40 h-full flex flex-col"
+      className="bg-white/5 rounded-lg overflow-hidden shadow-lg cursor-pointer group transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/20 border border-transparent hover:border-white/10 h-full flex flex-col"
       onClick={onSelect}
       onMouseEnter={isTouchDevice.current ? undefined : handleMouseEnter}
       onMouseLeave={isTouchDevice.current ? undefined : handleMouseLeave}
@@ -207,12 +207,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
         <div className="absolute inset-0 bg-black bg-opacity-40 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center">
            <PlayIcon className={`w-12 h-12 text-white/80 transform transition-all duration-300 pointer-events-none ${isHovering ? 'opacity-0 scale-75' : 'opacity-100 group-hover:scale-110'}`} />
         </div>
-        <div className={`absolute top-2 right-2 text-sm font-bold px-3 py-1 rounded-full shadow-lg ${
+        <div className={`absolute top-2 right-2 text-xs font-bold px-3 py-1 rounded-full shadow-lg backdrop-blur-sm ${
             video.isFree 
-            ? 'bg-yellow-400 text-gray-900' 
-            : 'bg-gray-900/70 text-green-400'
+            ? 'bg-amber-400 text-black' 
+            : 'bg-black/50 text-white'
         }`}>
-          {video.isFree ? 'Free' : `$${video.price.toFixed(2)}`}
+          {video.isFree ? 'FREE' : `$${video.price.toFixed(2)}`}
         </div>
         <button
           onClick={handleFavoriteClick}
@@ -231,7 +231,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onSelect, onAddToCa
         </button>
       </div>
       <div className="p-4">
-        <h3 className="text-lg font-semibold text-white truncate">{video.title}</h3>
+        <h3 className="font-heading text-lg font-semibold text-white truncate">{video.title}</h3>
         {isAdmin && displayKeywords.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
             {displayKeywords.slice(0, 3).map((keyword) => (
