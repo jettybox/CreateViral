@@ -8,11 +8,40 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://js.stripe.com/v3/"></script>
     <style>
+      :root {
+        --font-heading: 'Poppins', sans-serif;
+        --font-body: 'Inter', sans-serif;
+      }
       body {
-        font-family: 'Inter', sans-serif;
+        font-family: var(--font-body);
+        background-color: #0A0A0A;
+        color: #E5E7EB;
+        overflow-x: hidden;
+      }
+      body::before {
+        content: '';
+        position: fixed;
+        top: 0; left: 0;
+        width: 200vw;
+        height: 200vh;
+        background: radial-gradient(circle at 20% 20%, rgba(139, 92, 246, 0.15), transparent 40%),
+                    radial-gradient(circle at 80% 70%, rgba(234, 179, 8, 0.15), transparent 40%),
+                    radial-gradient(circle at 50% 50%, rgba(29, 78, 216, 0.12), transparent 50%);
+        animation: moveGradient 40s ease infinite alternate;
+        z-index: -1;
+        will-change: transform;
+      }
+
+      @keyframes moveGradient {
+        0% { transform: translate(0, 0); }
+        100% { transform: translate(-50%, -50%); }
+      }
+
+      .font-heading {
+        font-family: var(--font-heading);
       }
     </style>
   <script type="importmap">
@@ -29,9 +58,8 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-gray-900 text-white">
+  <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
