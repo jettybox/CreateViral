@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { collection, onSnapshot, doc, deleteDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-functions.js';
@@ -86,7 +87,6 @@ export default function App() {
       return [];
     }
   });
-  const [isDiscountBannerVisible, setIsDiscountBannerVisible] = useState(true);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isVerifyingPurchase, setIsVerifyingPurchase] = useState(false);
   const isAdmin = useAdminMode();
@@ -544,11 +544,11 @@ export default function App() {
   }, [cart, videos, app]);
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-transparent">
       {isVerifyingPurchase && (
         <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-[100]">
           <Spinner className="w-16 h-16" />
-          <h2 className="mt-4 text-2xl font-bold text-white">Verifying your purchase...</h2>
+          <h2 className="mt-4 text-2xl font-bold text-white font-heading">Verifying your purchase...</h2>
           <p className="mt-2 text-gray-300">Please do not close or refresh this page.</p>
         </div>
        )}
@@ -568,7 +568,7 @@ export default function App() {
       />
 
       <main className="container mx-auto px-4 py-8">
-        {isDiscountBannerVisible && <DiscountBanner onDismiss={() => setIsDiscountBannerVisible(false)} />}
+        <DiscountBanner />
         
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
           <CategoryFilter
@@ -584,15 +584,15 @@ export default function App() {
         {connectionError && (
           <div className="text-center py-20 bg-red-900/20 border border-red-500/30 rounded-lg p-8">
             <WarningIcon className="w-12 h-12 text-red-400 mx-auto" />
-            <h2 className="mt-4 text-2xl font-bold text-red-300">Connection Error</h2>
+            <h2 className="mt-4 text-2xl font-bold text-red-300 font-heading">Connection Error</h2>
             <p className="mt-2 text-red-300/80">{connectionError}</p>
           </div>
         )}
 
         {!isLoading && !connectionError && visibleVideos.length === 0 && (
-          <div className="text-center py-20 bg-gray-800/50 rounded-lg p-8">
+          <div className="text-center py-20 bg-black/20 rounded-lg p-8">
             <FilmIcon className="w-12 h-12 text-gray-500 mx-auto" />
-            <h2 className="mt-4 text-2xl font-bold text-gray-400">No Videos Found</h2>
+            <h2 className="mt-4 text-2xl font-bold text-gray-400 font-heading">No Videos Found</h2>
             <p className="mt-2 text-gray-500">Try adjusting your search or category filters.</p>
           </div>
         )}
@@ -614,7 +614,7 @@ export default function App() {
               <div className="text-center mt-12">
                 <button
                   onClick={() => setPagesLoaded(prev => prev + 1)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                  className="font-heading bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-black"
                 >
                   View More
                 </button>
