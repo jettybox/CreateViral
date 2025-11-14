@@ -1,5 +1,4 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { CATEGORIES } from '../constants';
 import type { VideoFile } from '../types';
 
 // Lazily initialize the AI client.
@@ -165,7 +164,8 @@ const metadataEnhancementSchema = {
 };
 
 export async function enhanceVideoMetadata(
-    videoData: { title: string; keywords: string[] }
+    videoData: { title: string; keywords: string[] },
+    allCategories: string[]
 ): Promise<{ description: string; categories: string[]; commercialAppeal: number; }> {
     const aiClient = getAiClient();
     if (!aiClient) {
@@ -185,7 +185,7 @@ export async function enhanceVideoMetadata(
         Return the result as a JSON object matching the provided schema.
         
         Available Categories:
-        ${CATEGORIES.join(', ')}
+        ${allCategories.join(', ')}
 
         Video Information:
         Title: "${videoData.title}"
