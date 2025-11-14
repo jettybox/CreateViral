@@ -8,6 +8,7 @@ import { enhanceVideoMetadata, isApiKeyAvailable, setApiKey as saveApiKeyToServi
 
 interface UploadPanelProps {
   onClose: () => void;
+  allCategories: string[];
 }
 
 type Status = 'idle' | 'file-selected' | 'processing' | 'enhancing' | 'error' | 'success';
@@ -38,7 +39,7 @@ const encodeB2Filename = (filename: string): string => {
   ).join('/');
 };
 
-export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
+export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose, allCategories }) => {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [b2UrlPrefix, setB2UrlPrefix] = useState('');
   const [prefixWarning, setPrefixWarning] = useState<string | null>(null);
@@ -192,7 +193,7 @@ export const UploadPanel: React.FC<UploadPanelProps> = ({ onClose }) => {
       const maxRetries = 3;
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          enhancedData = await enhanceVideoMetadata({ title, keywords });
+          enhancedData = await enhanceVideoMetadata({ title, keywords }, allCategories);
           break; // Success
         } catch (error: any) {
           const errorMessage = error.message || '';
