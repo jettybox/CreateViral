@@ -45,7 +45,7 @@ export const CartPanel: React.FC<CartPanelProps> = ({ items, onClose, onRemoveIt
             <div className="h-full flex flex-col bg-gray-800 shadow-xl overflow-y-scroll">
               <div className="flex-1 py-6 overflow-y-auto px-4 sm:px-6">
                 <div className="flex items-start justify-between">
-                  <h2 className="text-lg font-medium text-white" id="slide-over-title">Shopping Cart</h2>
+                  <h2 className="text-lg font-medium text-white font-heading" id="slide-over-title">Shopping Cart</h2>
                   <div className="ml-3 h-7 flex items-center">
                     <button type="button" className="-m-2 p-2 text-gray-400 hover:text-white" onClick={onClose}>
                       <span className="sr-only">Close panel</span>
@@ -79,7 +79,7 @@ export const CartPanel: React.FC<CartPanelProps> = ({ items, onClose, onRemoveIt
                                 <div className="ml-4 flex-1 flex flex-col">
                                   <div>
                                     <div className="flex justify-between text-base font-medium text-white">
-                                      <h3>{item.title}</h3>
+                                      <h3 className="font-heading">{item.title}</h3>
                                       <p className="ml-4">{item.isFree ? 'Free' : `$${item.price.toFixed(2)}`}</p>
                                     </div>
                                     <p className="mt-1 text-sm text-gray-400 truncate">{item.categories.join(', ')}</p>
@@ -120,7 +120,7 @@ export const CartPanel: React.FC<CartPanelProps> = ({ items, onClose, onRemoveIt
                         <p>-${discount.toFixed(2)}</p>
                       </div>
                     )}
-                    <div className="flex justify-between text-lg font-bold text-white border-t border-gray-600 pt-2 mt-2">
+                    <div className="flex justify-between text-lg font-bold text-white border-t border-gray-600 pt-2 mt-2 font-heading">
                       <p>Total</p>
                       <p>${total.toFixed(2)}</p>
                     </div>
@@ -130,7 +130,7 @@ export const CartPanel: React.FC<CartPanelProps> = ({ items, onClose, onRemoveIt
                     <button
                       onClick={onCheckout}
                       disabled={isCheckingOut}
-                      className="w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-wait"
+                      className="font-heading w-full flex justify-center items-center px-6 py-3 border border-transparent rounded-md shadow-lg text-base font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 transition-all duration-300 disabled:opacity-60 disabled:cursor-wait"
                     >
                       {isCheckingOut ? (
                         <>
