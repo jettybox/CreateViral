@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { FilmIcon, SearchIcon, ExclamationCircleIcon, CartIcon, UploadIcon, QuestionMarkCircleIcon, DownloadIcon, HeartIcon, TagIcon } from './Icons';
 import { Spinner } from './Spinner';
@@ -53,9 +54,9 @@ export const Header: React.FC<HeaderProps> = ({
           <FilmIcon className="w-10 h-10 text-amber-400 flex-shrink-0" />
           <div>
             <h1 className="font-heading text-3xl font-bold text-white tracking-tighter">
-              GenieClips<span className="text-amber-400">.com</span>
+              Vid<span className="text-amber-400">Flo</span>
             </h1>
-            <p className="text-xs text-gray-400 tracking-wide -mt-1">AI-Powered Creative Assets</p>
+            <p className="text-xs text-gray-400 tracking-wide -mt-1">Premium AI Footage, Instantly</p>
           </div>
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto">
