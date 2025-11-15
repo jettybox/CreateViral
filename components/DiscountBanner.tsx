@@ -7,11 +7,11 @@ export const DiscountBanner: React.FC = () => {
         Create The <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">Impossible</span>.
       </h2>
       <p className="mt-4 max-w-2xl mx-auto text-lg text-gray-300">
-        Video Elements & VFX for your next viral project.
+        Video Elements & VFX for your next creative breakthrough.
       </p>
       <div className="mt-8">
         <a 
-          href="#/free-elements"
+          href="#/free-clips"
           onClick={(e) => {
             e.preventDefault();
             const freeButton = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent === 'Free');
@@ -23,7 +23,7 @@ export const DiscountBanner: React.FC = () => {
           }}
           className="font-heading inline-block bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-black shadow-lg"
         >
-          Download Free Elements
+          Download Free Clips
         </a>
       </div>
       <div className="mt-6">
